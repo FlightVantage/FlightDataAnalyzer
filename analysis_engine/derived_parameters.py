@@ -2084,8 +2084,6 @@ class GroundspeedSigned(DerivedParameterNode):
             tx = taxi.slice
             gsp = groundspeed_from_position(lat.array[tx], lon.array[tx], lat.frequency)
             self.array[tx] = np.ma.minimum(gspd.array[tx], gsp)
-
-
 class FlapAngle(DerivedParameterNode):
     '''
     Gather the recorded flap angle parameters and convert into a single
@@ -2104,23 +2102,13 @@ class FlapAngle(DerivedParameterNode):
     @classmethod
     def can_operate(cls, available):
 
-        return any_of((
-            'Flap Angle (L)', 'Flap Angle (R)',
-            'Flap Angle (C)', 'Flap Angle (MCP)',
-            'Flap Angle (L) Inboard', 'Flap Angle (R) Inboard',
-        ), available)
+        return any_of(('Flap Angle (L)', 'Flap Angle (R)'), available)
 
     def derive(self,
                flap_A=P('Flap Angle (L)'),
-               flap_B=P('Flap Angle (R)'),
-               flap_C=P('Flap Angle (C)'),
-               flap_D=P('Flap Angle (MCP)'),
-               flap_A_inboard=P('Flap Angle (L) Inboard'),
-               flap_B_inboard=P('Flap Angle (R) Inboard')):
-        flap_A = flap_A or flap_A_inboard
-        flap_B = flap_B or flap_B_inboard
+               flap_B=P('Flap Angle (R)')):
 
-        sources = [f for f in (flap_A, flap_B, flap_C, flap_D) if f]
+        sources = [f for f in (flap_A, flap_B) if f]
 
         # if only one parameter, align and use that parameter - easy
         if len(sources) == 1:
@@ -2196,53 +2184,6 @@ class FlapAngle(DerivedParameterNode):
             self.array, self.frequency, self.offset = blend_two_parameters(*sources)
 
 
-class FlapSynchroAsymmetry(DerivedParameterNode):
-    '''
-    Flap Synchro Asymmetry angle.
-
-    Shows an absolute value of difference between Left and Right Flap Synchros.
-    Note: this is not a difference in flap angle.
-    '''
-
-    units = ut.DEGREE
-
-    @classmethod
-    def can_operate(cls, available):
-        return all_of(('Flap Angle (L) Synchro', 'Flap Angle (R) Synchro',), available)
-
-    def derive(self, synchro_l=P('Flap Angle (L) Synchro'), synchro_r=P('Flap Angle (R) Synchro'),):
-        self.array = np.abs(synchro_l.array - synchro_r.array)
-
-
-'''
-class SlatAngle(DerivedParameterNode):
-
-    s1f = M('Slat (1) Fully Extended'),
-    s1t = M('Slat (1) In Transit'),
-    s1m = M('Slat (1) Mid Extended'),
-
-    s1f = M('Slat (1) Fully Extended'),
-    s1t = M('Slat (1) In Transit'),
-    s1m = M('Slat (1) Mid Extended'),
-
-    s1f = M('Slat (1) Fully Extended'),
-    s1t = M('Slat (1) In Transit'),
-    s1m = M('Slat (1) Mid Extended'),
-
-    s1f = M('Slat (1) Fully Extended'),
-    s1t = M('Slat (1) In Transit'),
-    s1m = M('Slat (1) Mid Extended'),
-
-    s1f = M('Slat (1) Fully Extended'),
-    s1t = M('Slat (1) In Transit'),
-    s1m = M('Slat (1) Mid Extended'),
-
-    s1f = M('Slat (1) Fully Extended'),
-    s1t = M('Slat (1) In Transit'),
-    s1m = M('Slat (1) Mid Extended'),
-'''
-
-
 class SlatAngle(DerivedParameterNode):
     '''
     Combines Slat Angle (L) and Slat Angle (R) if available alternativly
@@ -2253,60 +2194,15 @@ class SlatAngle(DerivedParameterNode):
     units = ut.DEGREE
 
     @classmethod
-    def can_operate(cls, available,
-                    model=A('Model'), series=A('Series'), family=A('Family')):
-
+    def can_operate(cls, available):
         if any_of(('Slat Angle (L)', 'Slat Angle (R)'), available):
             return True
-        elif 'Slat Angle Recorded' in available:
-            return True
-        else:
-            if not all_of(('Slat Fully Extended', 'Model', 'Series', 'Family'), available):
-                return False
-            try:
-                at.get_slat_map(model.value, series.value, family.value)
-            except KeyError:
-                cls.debug("No slat mapping available for '%s', '%s', '%s'.",
-                          model.value, series.value, family.value)
-                return False
 
-            return True
-
-    def derive(self, slat_l=P('Slat Angle (L)'), slat_r=P('Slat Angle (R)'),
-               slat_full=M('Slat Fully Extended'), slat_part=M('Slat Part Extended'),
-               slat_retracted=M('Slat Retracted'), slat_angle_rec=P('Slat Angle Recorded'),
-               model=A('Model'), series=A('Series'), family=A('Family')):
+    def derive(self, slat_l=P('Slat Angle (L)'), slat_r=P('Slat Angle (R)')):
 
         if slat_l or slat_r:
             self.array, self.frequency, self.offset = \
                 blend_two_parameters(slat_l, slat_r)
-        elif slat_angle_rec:
-            # Spikey Slat Angle parameter renamed to Slat Angle Recorded to
-            # allow removal of single spikes
-            self.frequency = slat_angle_rec.frequency
-            self.offset = slat_angle_rec.offset
-            self.array = second_window(slat_angle_rec.array, 1, 2) # 3 sample smoothing
-        else:
-            detents = sorted(at.get_slat_map(model.value, series.value, family.value).keys())
-            # align
-            master = first_valid_parameter(slat_full, slat_part, slat_retracted)
-            self.frequency = master.frequency
-            self.offset = master.offset
-            if slat_retracted:
-                # If Retracted parameter use it
-                array = np_ma_masked_zeros_like(master.array)
-                slat_retracted = slat_retracted.get_aligned(master)
-                array[slat_retracted.array == 'Retracted'] = detents[0]
-            else:
-                # If no explicit Retracted parameter default to Retracted
-                array = np_ma_zeros_like(master.array)
-            if slat_full:
-                array[slat_full.array == 'Extended'] = detents[-1]
-            if slat_part:
-                part_extended = slat_part.get_aligned(master)
-                array[part_extended.array == 'Part Extended'] = detents[1]
-            # TODO: Handle slat in transit parameter
-            self.array = nearest_neighbour_mask_repair(array)
 
 
 class _SlopeMixin(object):
@@ -2481,48 +2377,7 @@ class ApproachFlightPathAngle(DerivedParameterNode):
             self.array[app.slice] = np.degrees(np.arctan(slope_to_ldg))
 
 
-'''
 
-TODO: Revise computation of sliding motion
-
-class GroundspeedAlongTrack(DerivedParameterNode):
-    """
-    Inertial smoothing provides computation of groundspeed data when the
-    recorded groundspeed is unreliable. For example, during sliding motion on
-    a runway during deceleration. This is not good enough for long period
-    computation, but is an improvement over aircraft where the groundspeed
-    data stops at 40kn or thereabouts.
-    """
-    def derive(self, gndspd=P('Groundspeed'),
-               at=P('Acceleration Along Track'),
-               alt_aal=P('Altitude AAL'),
-               glide = P('ILS Glideslope')):
-        at_washout = first_order_washout(at.array, AT_WASHOUT_TC, gndspd.hz,
-                                         gain=GROUNDSPEED_LAG_TC*GRAVITY_METRIC)
-        self.array = first_order_lag(ut.convert(gndspd.array, ut.KT, ut.METER_S) + at_washout,
-                                     GROUNDSPEED_LAG_TC,gndspd.hz)
-
-
-        """
-        #-------------------------------------------------------------------
-        # TEST OUTPUT TO CSV FILE FOR DEBUGGING ONLY
-        # TODO: REMOVE THIS SECTION BEFORE RELEASE
-        #-------------------------------------------------------------------
-        import csv
-        spam = csv.writer(open('beans.csv', 'wb'))
-        spam.writerow(['at', 'gndspd', 'at_washout', 'self', 'alt_aal','glide'])
-        for showme in range(0, len(at.array)):
-            spam.writerow([at.array.data[showme],
-                           ut.convert(gndspd.array.data[showme], ut.KT, ut.FPS),
-                           at_washout[showme],
-                           self.array.data[showme],
-                           alt_aal.array[showme],glide.array[showme]])
-        #-------------------------------------------------------------------
-        # TEST OUTPUT TO CSV FILE FOR DEBUGGING ONLY
-        # TODO: REMOVE THIS SECTION BEFORE RELEASE
-        #-------------------------------------------------------------------
-        """
-'''
 
 class HeadingContinuous(DerivedParameterNode):
     '''
@@ -2541,38 +2396,10 @@ class HeadingContinuous(DerivedParameterNode):
 
     @classmethod
     def can_operate(cls, available):
-        return ('Heading' in available or
-                all_of(('Heading (Capt)', 'Heading (FO)'), available))
+        return ('Heading' in available)
 
-    def derive(self, head_mag=P('Heading'),
-               head_capt=P('Heading (Capt)'),
-               head_fo=P('Heading (FO)'),
-               frame = A('Frame')):
-
-        frame_name = frame.value if frame else ''
-
-        if frame_name in ['L382-Hercules']:
-            gauss = [0.054488683, 0.244201343, 0.402619948, 0.244201343, 0.054488683]
-            self.array = moving_average(
-                straighten_headings(repair_mask(head_mag.array,
-                                                repair_duration=None)),
-                window=5, weightings=gauss)
-
-        else:
-            if head_capt and head_fo and (head_capt.hz==head_fo.hz):
-                head_capt.array = repair_mask(straighten_headings(head_capt.array))
-                head_fo.array = repair_mask(straighten_headings(head_fo.array))
-
-                # If two compasses start up aligned east and west of North,
-                # the blend_two_parameters can give a result 180 deg out. The
-                # next three lines correct this error condition.
-                diff = np.ma.mean(head_capt.array) - np.ma.mean(head_fo.array)
-                corr = ((int(diff)+180)//360)*360.0
-                head_fo.array += corr
-
-                self.array, self.frequency, self.offset = blend_two_parameters(head_capt, head_fo)
-            elif np.ma.count(head_mag.array):
-                self.array = repair_mask(straighten_headings(head_mag.array))
+    def derive(self, head_mag=P('Heading')):
+            self.array = repair_mask(straighten_headings(head_mag.array))
 
 
 class HeadingTrueContinuous(DerivedParameterNode):
@@ -2586,38 +2413,6 @@ class HeadingTrueContinuous(DerivedParameterNode):
 
     def derive(self, hdg=P('Heading True')):
         self.array = repair_mask(straighten_headings(hdg.array))
-
-
-class Heading(DerivedParameterNode):
-    '''
-    Compensates for magnetic variation, which will have been computed
-    previously based on the magnetic declanation at the aircraft's location.
-    '''
-
-    units = ut.DEGREE
-
-    def derive(self, head_true=P('Heading True Continuous'),
-               mag_var=P('Magnetic Variation')):
-        self.array = (head_true.array - mag_var.array) % 360.0
-
-
-class HeadingTrue(DerivedParameterNode):
-    '''
-    Compensates for magnetic variation, which will have been computed
-    previously.
-
-    The Magnetic Variation from identified Takeoff and Landing runways is
-    taken in preference to that calculated based on geographical latitude and
-    longitude in order to account for any compass drift or out of date
-    magnetic variation databases on the aircraft.
-    '''
-
-    units = ut.DEGREE
-
-    def derive(self, head=P('Heading Continuous'),
-               rwy_var=P('Magnetic Variation From Runway')):
-        var = rwy_var.array
-        self.array = (head.array + var) % 360.0
 
 
 class ILSFrequency(DerivedParameterNode):
@@ -2641,10 +2436,9 @@ class ILSFrequency(DerivedParameterNode):
     def can_operate(cls, available):
         return ('ILS (1) Frequency' in available and
                 'ILS (2) Frequency' in available) or \
-               ('ILS-VOR (1) Frequency' in available)
+               ('ILS (3) Frequency' in available)
 
-    def derive(self, f1=P('ILS (1) Frequency'), f2=P('ILS (2) Frequency'),
-               f1v=P('ILS-VOR (1) Frequency'), f2v=P('ILS-VOR (2) Frequency')):
+    def derive(self, f1=P('ILS (1) Frequency'), f2=P('ILS (2) Frequency'), f3=P('ILS (3) Frequency')):
 
         #TODO: Extend to allow for three-receiver installations
         if f1 and f2:
@@ -2676,58 +2470,43 @@ class ILSFrequency(DerivedParameterNode):
 
 class ILSLocalizer(DerivedParameterNode):
     '''
-    This derived parameter merges the available sources into a single
-    consolidated parameter.
-
-    Different forms of parameter blending are used to cater for the various numbers
-    of available signals on different aircraft.
+    Consolidated ILS Localizer parameter node.
+    
+    This parameter node checks "ILS (n) Localizer Raw" for three ILS antennas.
+    The raw value ranges from -127 to +127, with 1 dot deviation equal to 64 units.
+    
+    The node converts each raw value to dots by dividing by 64 and then blends them
+    by averaging the active (non-null) sources.
     '''
-
     name = 'ILS Localizer'
     align = False
     units = ut.DOTS
 
     @classmethod
     def can_operate(cls, available):
-        return any_of(cls.get_dependency_names(), available)
+        return any(param in available for param in [
+            'ILS (1) Localizer Raw',
+            'ILS (2) Localizer Raw',
+            'ILS (3) Localizer Raw',
+        ])
 
     def derive(self,
-               src_A=P('ILS (1) Localizer'),
-               src_B=P('ILS (2) Localizer'),
-               src_C=P('ILS (3) Localizer'),
-               src_D=P('ILS (4) Localizer'),
-               src_E=P('ILS (L) Localizer'),
-               src_F=P('ILS (R) Localizer'),
-               src_G=P('ILS (C) Localizer'),
-               src_J=P('ILS (EFIS) Localizer'),
-               ias=P('Airspeed'),
-               ):
+               localizer1=P('ILS (1) Localizer Raw'),
+               localizer2=P('ILS (2) Localizer Raw'),
+               localizer3=P('ILS (3) Localizer Raw')):
+        # Convert raw values to dot deviations (1 dot = 64 units)
+        dot_sources = []
+        for src in [localizer1, localizer2, localizer3]:
+            if src:
+                dot_sources.append(src.array / 64.0)
 
-        sources = [src_A, src_B, src_C, src_D, src_E, src_F, src_G, src_J]
-        active_sources = [s for s in sources if s]
-
-        source_count = len(active_sources)
-        if source_count == 0:
-            # If all sources of data are masked during validation, return a null parameter
-            self.offset = ias.offset
-            self.frequency = ias.frequency
-            self.array = np_ma_masked_zeros_like(ias.array)
-
-        elif source_count == 1:
-            self.offset = active_sources[0].offset
-            self.frequency = active_sources[0].frequency
-            self.array = active_sources[0].array
-
-        elif source_count == 2:
-            self.array, self.frequency, self.offset = blend_two_parameters(active_sources[0],
-                                                                          active_sources[1],
-                                                                          mode='localizer')
-
+        if not dot_sources:
+            # If no valid sources, return a masked zero array based on the first available parameter
+            ref = localizer1 or localizer2 or localizer3
+            self.array = np_ma_masked_zeros_like(ref.array)
         else:
-            self.offset = 0.0
-            self.frequency = 2.0
-            self.array = blend_parameters(sources, offset=self.offset,
-                                          frequency=self.frequency)
+            # Blend active sources by taking their average
+            self.array = np.ma.average(np.ma.array(dot_sources), axis=0)
 
 
 class ILSLateralDistance(DerivedParameterNode):
@@ -2768,35 +2547,43 @@ class ILSLateralDistance(DerivedParameterNode):
 
 class ILSGlideslope(DerivedParameterNode):
     '''
-    This derived parameter merges the available sources into a single
-    consolidated parameter. The more complex form of parameter blending is
-    used to allow for many permutations.
+    Consolidated ILS Glideslope parameter node.
+    
+    This node checks "ILS (n) Glideslope Raw" for three ILS antennas.
+    The raw value ranges from -127 to +127, with 1 dot deviation equal to 64 units.
+    
+    It converts the raw values to dots by dividing by 64 and blends the active
+    sources by averaging them.
     '''
-
     name = 'ILS Glideslope'
     align = False
     units = ut.DOTS
 
     @classmethod
     def can_operate(cls, available):
-
-        return any_of(cls.get_dependency_names(), available)
+        return any(param in available for param in [
+            'ILS (1) Glideslope Raw',
+            'ILS (2) Glideslope Raw',
+            'ILS (3) Glideslope Raw'
+        ])
 
     def derive(self,
-               src_A=P('ILS (1) Glideslope'),
-               src_B=P('ILS (2) Glideslope'),
-               src_C=P('ILS (3) Glideslope'),
-               src_D=P('ILS (4) Glideslope'),
-               src_E=P('ILS (L) Glideslope'),
-               src_F=P('ILS (R) Glideslope'),
-               src_G=P('ILS (C) Glideslope'),
-               src_J=P('ILS (EFIS) Glideslope')):
+               glideslope1=P('ILS (1) Glideslope Raw'),
+               glideslope2=P('ILS (2) Glideslope Raw'),
+               glideslope3=P('ILS (3) Glideslope Raw')):
+        # Convert raw values to dot deviations (1 dot = 64 units)
+        dot_sources = []
+        for src in [glideslope1, glideslope2, glideslope3]:
+            if src:
+                dot_sources.append(src.array / 64.0)
 
-        sources = [src_A, src_B, src_C, src_D, src_E, src_F, src_G, src_J]
-        self.offset = 0.0
-        self.frequency = 2.0
-        self.array = blend_parameters(sources, offset=self.offset,
-                                      frequency=self.frequency)
+        if not dot_sources:
+            # If no valid sources exist, return a masked zero array based on the first available source.
+            ref = glideslope1 or glideslope2 or glideslope3
+            self.array = np_ma_masked_zeros_like(ref.array)
+        else:
+            # Blend active sources by averaging them.
+            self.array = np.ma.average(np.ma.array(dot_sources), axis=0)
 
 
 class AimingPointRange(DerivedParameterNode):
@@ -3220,8 +3007,6 @@ class LatitudeSmoothed(DerivedParameterNode, CoordinatesSmoothed):
     # List the minimum acceptable parameters here
     @classmethod
     def can_operate(cls, available, precise=A('Precise Positioning'), ac_type=A('Aircraft Type')):
-        if ac_type == helicopter:
-            return 'Longitude Prepared' in available
         required = [
             'Latitude Prepared',
             'Longitude Prepared',
@@ -3364,12 +3149,9 @@ class MagneticVariation(DerivedParameterNode):
         return lat and lon and all_of(('Altitude AAL', 'Start Datetime'),
                                       available)
 
-    def derive(self, lat=P('Latitude'), lat_coarse=P('Latitude (Coarse)'),
-               lon=P('Longitude'), lon_coarse=P('Longitude (Coarse)'),
+    def derive(self, lat=P('Latitude'), lon=P('Longitude'),
                alt_aal=P('Altitude AAL'), start_datetime=A('Start Datetime')):
 
-        lat = lat or lat_coarse
-        lon = lon or lon_coarse
         mag_var_frequency = int(64 * self.frequency)
         mag_vars = []
         start_date = start_datetime.value.date() if start_datetime.value else date.today()
@@ -3483,7 +3265,7 @@ class MagneticVariationFromRunway(DerivedParameterNode):
         # apply offset to Magnetic Variation
         self.array = mag.array - offset
 
-
+ GOT HERE
 class VerticalSpeedInertial(DerivedParameterNode):
     '''
     See 'Vertical Speed' for pressure altitude based derived parameter.
