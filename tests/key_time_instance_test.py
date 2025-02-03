@@ -789,8 +789,8 @@ class TestTakeoffAccelerationStart(unittest.TestCase):
         self.assertEqual(\
             TakeoffAccelerationStart.get_operational_combinations(),
             [('Airspeed', 'Takeoff'),
-             ('Airspeed', 'Takeoff', 'Acceleration Longitudinal Offset Removed'),
-             ('Airspeed', 'Takeoff', 'Acceleration Longitudinal Offset Removed', 'Acceleration Longitudinal')])
+             ('Airspeed', 'Takeoff', 'Acceleration Longitudinal'),
+             ('Airspeed', 'Takeoff', 'Acceleration Longitudinal', 'Acceleration Longitudinal')])
 
     def test_takeoff_acceleration_start(self):
         # This test uses the same airspeed data as the library routine test,
@@ -974,7 +974,7 @@ class TestTouchdown(unittest.TestCase):
         opts = Touchdown.get_operational_combinations()
         # Minimal case
         self.assertIn(('Altitude AAL', 'Landing'), opts)
-        self.assertIn(('Acceleration Normal', 'Acceleration Longitudinal Offset Removed', 'Altitude AAL', 'Gear On Ground', 'Landing'), opts)
+        self.assertIn(('Acceleration Normal', 'Acceleration Longitudinal', 'Altitude AAL', 'Gear On Ground', 'Landing'), opts)
 
     def test_touchdown_with_minimum_requirements(self):
         # Test 1

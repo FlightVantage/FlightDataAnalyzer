@@ -408,8 +408,8 @@ v0.35.1
          due the extra complexity of more dependencies.
        - The helicopter calculations have been moved to a helicopter module which can override the node when processing helicopter flights.
          This is an initial stage.
-   - Fixes: KPV 'Acceleration Normal Offset' not being created, causing no offset in 'Acceleration Normal Offset Removed' (AE-214)
-   - Fixes: KPV 'Acceleration Lateral Offset' not being created, causing no offset in 'Acceleration Lateral Offset Removed' (AE-214)
+   - Fixes: KPV 'Acceleration Normal Offset' not being created, causing no offset in 'Acceleration Normal' (AE-214)
+   - Fixes: KPV 'Acceleration Lateral Offset' not being created, causing no offset in 'Acceleration Lateral' (AE-214)
    - Fixes: 'Magnetic Variation From Runway' being derived but too late to be used in deriving 'Heading True' (AE-1460)
    - Improvement: Simplify 'Heading True' by just using ‘Heading Continuous’ and ‘Magnetic Variation From Runway’. No optional dependencies. (AE-1460)
    - Improvement: 'Magnetic Variation From Runway' now fits the 'Magnetic Variation' profile to the Magnetic Variation of the takeoff and  (AE-1460)
@@ -846,7 +846,7 @@ v0.29.1
    - Library: Change overflow correction to remove gaps based on time
    - Multistate: Speedbrake Deployed remove single samples
    - Multistate: Speedbrake Selected: added A310, A350, CRJ100, CRJ200
-   - Phase: Climb/Descent Altitude Radio Offset Removed used
+   - Phase: Climb/Descent Altitude Radio used
    - Split: Helicopter: handle missing GOG
  - Fix:
    - Wholly masked segments ignored in ClimbCruiseDescent flight phase.
@@ -1354,7 +1354,7 @@ v0.19.1
    - find_low_alts: fix for level_flight during noise
    - Flap Angle offset should not be changed unless really necessary.
  - Improved
-   - Change to Altitude Radio offset removed to only adjust positive offsets
+   - Change to Altitude Radio to only adjust positive offsets
    - change to Rad Alt offset removed to try and cater for increases in rad alt
      during acceleration
    - Radio Alt offset removed retain origional mask following medfilt
@@ -1404,8 +1404,8 @@ v0.18.1
    - Approaches with too little valid glideslope data revert to "visual" approach estimation
    - blend_parameters library function expanded to provide both linear and cubic interpolation
    - calculate_surface_angle library function simplified to not apply a guassian filter and to always upscale the parameter frequency
-   - Changes to Altitude Radio Offset Removed from masking go-arounds
-   - Changed Altitude AAL to use Alt Radio Offset Removed
+   - Changes to Altitude Radio from masking go-arounds
+   - Changed Altitude AAL to use Alt Radio
    - Changed ascending Altitude band KPVs to use Combined Climb
    - Changed descending Altitude KPVs between 3000 and 1000 Ft to use slices_from_to as Approach excluded level flight
    - Flap Angle interleaves each of the signals and interpolates the resulting higher frequency resulting parameter - much more accurate than interpolating values before interleaving
@@ -1610,7 +1610,7 @@ Flight Data Converter has been made timezone aware
    - Speedbrake Deployed (Multistate).
    - Gear Up (Multistate).
    - Gear In Transition (Multistate).
-   - Altitude Radio Offset Removed.
+   - Altitude Radio.
    - Kinetic Energy
    - Potential Energy
    - Aircraft Energy

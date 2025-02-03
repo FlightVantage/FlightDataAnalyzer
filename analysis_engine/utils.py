@@ -9,7 +9,7 @@ import six
 import zipfile
 
 from collections import defaultdict
-from inspect import getargspec, isclass, ismodule
+from inspect import getfullargspec, isclass, ismodule
 
 from hdfaccess.file import hdf_file
 from hdfaccess.utils import strip_hdf
@@ -65,7 +65,7 @@ def save_test_data(node, locals):
     code.append("test_data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_data')")
 
     code.append("node = %s()" % node.__class__.__name__)
-    for var_name in getargspec(node.derive).args[1:]:
+    for var_name in getfullargspec(node.derive).args[1:]:
         # generate unique filename
         counter = 1
         while True:
@@ -77,7 +77,7 @@ def save_test_data(node, locals):
         save(locals[var_name], file_path)
 
         code.append("%s = load(os.path.join(test_data_path, '%s'))" % (var_name, filename))
-    code.append("node.derive(%s)" % ', '.join(getargspec(node.derive).args[1:]))
+    code.append("node.derive(%s)" % ', '.join(getfullargspec(node.derive).args[1:]))
     return '\n'.join(code)
 
 

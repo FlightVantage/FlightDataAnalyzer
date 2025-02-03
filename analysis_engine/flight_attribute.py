@@ -189,7 +189,7 @@ class DestinationAirport(FlightAttributeNode):
         Requires an ASCII destination parameter recording either the airport's
         ICAO or IATA code.
         '''
-        if not dest or dest.array.dtype.type is not np.string_:
+        if not dest or dest.array.dtype.type is not np.bytes_:
             if afr_dest:
                 self.set_flight_attr(afr_dest.value)
             return
@@ -243,7 +243,7 @@ class FlightNumber(FlightAttributeNode):
 
     def derive(self, num=P('Flight Number')):
         # Q: Should we validate the flight number?
-        if num.array.dtype.type is np.string_:
+        if num.array.dtype.type is np.bytes_:
             value = most_common_value(num.array, threshold=0.45)
             if value is not None:
                 # Only parse valid ASCII characters

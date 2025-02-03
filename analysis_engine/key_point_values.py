@@ -260,11 +260,11 @@ class AccelerationLateralMax(KeyPointValueNode):
         reasonably say that we are not interested in anything while the aircraft is
         stationary.
         '''
-        return 'Acceleration Lateral Offset Removed' in available
+        return 'Acceleration Lateral' in available
 
 
     def derive(self,
-               acc_lat=P('Acceleration Lateral Offset Removed'),
+               acc_lat=P('Acceleration Lateral'),
                gnd_spd=P('Groundspeed')):
 
         if gnd_spd:
@@ -285,7 +285,7 @@ class AccelerationLateralAtTouchdown(KeyPointValueNode):
     units = ut.G
 
     def derive(self,
-               acc_lat=P('Acceleration Lateral Offset Removed'),
+               acc_lat=P('Acceleration Lateral'),
                touchdowns=KTI('Touchdown')):
 
         for touchdown in touchdowns:
@@ -300,7 +300,7 @@ class AccelerationLateralDuringTakeoffMax(KeyPointValueNode):
     units = ut.G
 
     def derive(self,
-               acc_lat=P('Acceleration Lateral Offset Removed'),
+               acc_lat=P('Acceleration Lateral'),
                takeoff_rolls=S('Takeoff Roll')):
 
         self.create_kpvs_within_slices(
@@ -318,7 +318,7 @@ class AccelerationLateralDuringLandingMax(KeyPointValueNode):
     units = ut.G
 
     def derive(self,
-               acc_lat=P('Acceleration Lateral Offset Removed'),
+               acc_lat=P('Acceleration Lateral'),
                landing_rolls=S('Landing Roll'),
                ldg_rwy=A('FDR Landing Runway')):
 
@@ -339,7 +339,7 @@ class AccelerationLateralWhileAirborneMax(KeyPointValueNode):
     units = ut.G
 
     def derive(self,
-               acc_lat=P('Acceleration Lateral Offset Removed'),
+               acc_lat=P('Acceleration Lateral'),
                airborne=S('Airborne')):
 
         self.create_kpv_from_slices(
@@ -494,7 +494,7 @@ class AccelerationLateralFor5SecMax(KeyPointValueNode):
 
     units = ut.G
 
-    def derive(self, accel_lat=P('Acceleration Lateral Offset Removed')):
+    def derive(self, accel_lat=P('Acceleration Lateral')):
         accel_lat_20 = second_window(accel_lat.array, accel_lat.frequency, 5, extend_window=True)
         self.create_kpv(*max_abs_value(accel_lat_20))
 
@@ -526,7 +526,7 @@ class AccelerationLongitudinalOffset(KeyPointValueNode):
 
         Note: using mobile sections which are not Fast in place of taxiing in
         order to aviod circular dependency with Taxiing, Rejected Takeoff and
-        Acceleration Longitudinal Offset Removed
+        Acceleration Longitudinal
         '''
 
         taxis = slices_and_not(mobiles.get_slices(), fasts.get_slices())
@@ -554,7 +554,7 @@ class AccelerationLongitudinalDuringTakeoffMax(KeyPointValueNode):
     units = ut.G
 
     def derive(self,
-               acc_lon=P('Acceleration Longitudinal Offset Removed'),
+               acc_lon=P('Acceleration Longitudinal'),
                takeoff=S('Takeoff')):
         '''
         This may be of interest where takeoff performance is an issue, though not
@@ -571,7 +571,7 @@ class AccelerationLongitudinalDuringLandingMin(KeyPointValueNode):
     units = ut.G
 
     def derive(self,
-               acc_lon=P('Acceleration Longitudinal Offset Removed'),
+               acc_lon=P('Acceleration Longitudinal'),
                landing=S('Landing')):
 
         self.create_kpv_from_slices(acc_lon.array, landing, min_value)
@@ -585,7 +585,7 @@ class AccelerationLongitudinalWhileAirborneMax(KeyPointValueNode):
     units = ut.G
 
     def derive(self,
-               acc_long=P('Acceleration Longitudinal Offset Removed'),
+               acc_long=P('Acceleration Longitudinal'),
                airborne=S('Airborne')):
 
         self.create_kpv_from_slices(
@@ -606,7 +606,7 @@ class AccelerationNormalMax(KeyPointValueNode):
     units = ut.G
 
     def derive(self,
-               acc_norm=P('Acceleration Normal Offset Removed'),
+               acc_norm=P('Acceleration Normal'),
                mobile=S('Mobile')):
 
         self.create_kpv_from_slices(acc_norm.array, mobile, max_value)
@@ -622,7 +622,7 @@ class AccelerationNormal20FtTo5FtMax(KeyPointValueNode):
     units = ut.G
 
     def derive(self,
-               acc_norm=P('Acceleration Normal Offset Removed'),
+               acc_norm=P('Acceleration Normal'),
                alt_aal=P('Altitude AAL For Flight Phases')):
 
         self.create_kpvs_within_slices(
@@ -645,10 +645,10 @@ class AccelerationNormalWithFlapUpWhileAirborneMax(KeyPointValueNode):
     def can_operate(cls, available):
 
         return any_of(('Flap Lever', 'Flap Lever (Synthetic)'), available) and \
-            all_of(('Acceleration Normal Offset Removed', 'Airborne'), available)
+            all_of(('Acceleration Normal', 'Airborne'), available)
 
     def derive(self,
-               acc_norm=P('Acceleration Normal Offset Removed'),
+               acc_norm=P('Acceleration Normal'),
                flap_lever=M('Flap Lever'),
                flap_synth=M('Flap Lever (Synthetic)'),
                airborne=S('Airborne')):
@@ -675,10 +675,10 @@ class AccelerationNormalWithFlapUpWhileAirborneMin(KeyPointValueNode):
     def can_operate(cls, available):
 
         return any_of(('Flap Lever', 'Flap Lever (Synthetic)'), available) and \
-            all_of(('Acceleration Normal Offset Removed', 'Airborne'), available)
+            all_of(('Acceleration Normal', 'Airborne'), available)
 
     def derive(self,
-               acc_norm=P('Acceleration Normal Offset Removed'),
+               acc_norm=P('Acceleration Normal'),
                flap_lever=M('Flap Lever'),
                flap_synth=M('Flap Lever (Synthetic)'),
                airborne=S('Airborne')):
@@ -706,10 +706,10 @@ class AccelerationNormalWithFlapDownWhileAirborneMax(KeyPointValueNode):
     def can_operate(cls, available):
 
         return any_of(('Flap Lever', 'Flap Lever (Synthetic)'), available) and \
-            all_of(('Acceleration Normal Offset Removed', 'Airborne'), available)
+            all_of(('Acceleration Normal', 'Airborne'), available)
 
     def derive(self,
-               acc_norm=P('Acceleration Normal Offset Removed'),
+               acc_norm=P('Acceleration Normal'),
                flap_lever=M('Flap Lever'),
                flap_synth=M('Flap Lever (Synthetic)'),
                airborne=S('Airborne')):
@@ -736,10 +736,10 @@ class AccelerationNormalWithFlapDownWhileAirborneMin(KeyPointValueNode):
     def can_operate(cls, available):
 
         return any_of(('Flap Lever', 'Flap Lever (Synthetic)'), available) and \
-            all_of(('Acceleration Normal Offset Removed', 'Airborne'), available)
+            all_of(('Acceleration Normal', 'Airborne'), available)
 
     def derive(self,
-               acc_norm=P('Acceleration Normal Offset Removed'),
+               acc_norm=P('Acceleration Normal'),
                flap_lever=M('Flap Lever'),
                flap_synth=M('Flap Lever (Synthetic)'),
                airborne=S('Airborne')):
@@ -765,7 +765,7 @@ class AccelerationNormalAboveLimitWithFlapDownWhileAirborne(KeyPointValueNode):
     units = ut.G
 
     def derive(self,
-               acc_norm=P('Acceleration Normal Offset Removed'),
+               acc_norm=P('Acceleration Normal'),
                acc_limit=P('Acceleration Normal High Limit With Flaps Down'),
                airborne=S('Airborne')):
 
@@ -785,7 +785,7 @@ class AccelerationNormalAtLiftoff(KeyPointValueNode):
     units = ut.G
 
     def derive(self,
-               acc_norm=P('Acceleration Normal Offset Removed'),
+               acc_norm=P('Acceleration Normal'),
                liftoffs=KTI('Liftoff')):
 
         for liftoff in liftoffs:
@@ -801,11 +801,11 @@ class AccelerationNormalAtTouchdown(KeyPointValueNode):
 
     @classmethod
     def can_operate(cls, available):
-        return all_of(('Acceleration Normal Offset Removed', 'Touchdown',
+        return all_of(('Acceleration Normal', 'Touchdown',
                        'Landing'), available)
 
     def derive(self,
-               acc_norm=P('Acceleration Normal Offset Removed'),
+               acc_norm=P('Acceleration Normal'),
                touchdowns=KTI('Touchdown'),
                ldgs=S('Landing'),
                ldg_rolls=S('Landing Roll'),
@@ -1118,7 +1118,7 @@ class AccelerationNormalLiftoffTo35FtMax(KeyPointValueNode):
     units = ut.G
 
     def derive(self,
-               acc_norm=P('Acceleration Normal Offset Removed'),
+               acc_norm=P('Acceleration Normal'),
                liftoffs=S('Liftoff'),
                takeoffs=S('Takeoff')):
 
@@ -1173,7 +1173,7 @@ class AccelerationNormalWhileAirborneMax(KeyPointValueNode):
 
     units = ut.G
 
-    def derive(self, accel_norm=P('Acceleration Normal Offset Removed'),
+    def derive(self, accel_norm=P('Acceleration Normal'),
                airborne=S('Airborne')):
         self.create_kpvs_within_slices(
             accel_norm.array,
@@ -1188,7 +1188,7 @@ class AccelerationNormalWhileAirborneMin(KeyPointValueNode):
 
     units = ut.G
 
-    def derive(self, accel_norm=P('Acceleration Normal Offset Removed'),
+    def derive(self, accel_norm=P('Acceleration Normal'),
                airborne=S('Airborne')):
         self.create_kpvs_within_slices(
             accel_norm.array,
@@ -13975,12 +13975,12 @@ class GroundspeedDuringRejectedTakeoffMax(KeyPointValueNode):
     @classmethod
     def can_operate(cls, available):
         return 'Rejected Takeoff' in available and any_of(
-            ('Acceleration Longitudinal Offset Removed',
+            ('Acceleration Longitudinal',
              'Groundspeed Signed'), available)
 
     def derive(self,
                # Accel is first dependency as maximum recoding frequency
-               accel=P('Acceleration Longitudinal Offset Removed'),
+               accel=P('Acceleration Longitudinal'),
                gnd_spd=P('Groundspeed Signed'),
                rtos=S('Rejected Takeoff')):
         if gnd_spd:

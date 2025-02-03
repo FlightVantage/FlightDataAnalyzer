@@ -1169,12 +1169,12 @@ class TakeoffAccelerationStart(KeyTimeInstanceNode):
             return False
         else:
             if 'Acceleration Longitudinal' in available:
-                return all_of(('Airspeed', 'Takeoff', 'Acceleration Longitudinal Offset Removed'), available)
+                return all_of(('Airspeed', 'Takeoff', 'Acceleration Longitudinal'), available)
             else:
                 return all_of(('Airspeed', 'Takeoff'), available)
 
     def derive(self, speed=P('Airspeed'), takeoffs=S('Takeoff'),
-               accel=P('Acceleration Longitudinal Offset Removed'),
+               accel=P('Acceleration Longitudinal'),
                accel_raw=P('Acceleration Longitudinal')):
         for takeoff in takeoffs:
             start_accel = None
@@ -1279,9 +1279,9 @@ class Liftoff(KeyTimeInstanceNode):
 
     def derive(self,
                vert_spd=P('Vertical Speed Inertial'),
-               acc_norm=P('Acceleration Normal Offset Removed'),
+               acc_norm=P('Acceleration Normal'),
                vert_spd_baro=P('Vertical Speed'),
-               alt_rad=P('Altitude Radio Offset Removed'),
+               alt_rad=P('Altitude Radio'),
                gog=M('Gear On Ground'),
                airs=S('Airborne'),
                frame=A('Frame'),
@@ -1491,9 +1491,9 @@ class Touchdown(KeyTimeInstanceNode):
     @classmethod
     def can_operate(cls, available, ac_type=A('Aircraft Type'), seg_type=A('Segment Type')):
         # if we have 'Acceleration Longitudinal' hold off until
-        # 'Acceleration Longitudinal Offset Removed' can be processed
+        # 'Acceleration Longitudinal' can be processed
         if 'Acceleration Longitudinal' in available and \
-           'Acceleration Longitudinal Offset Removed' not in available:
+           'Acceleration Longitudinal' not in available:
             return False
         if ac_type and ac_type.value == 'helicopter':
             return 'Airborne' in available
@@ -1503,7 +1503,7 @@ class Touchdown(KeyTimeInstanceNode):
             return all_of(('Altitude AAL', 'Landing'), available)
 
     def derive(self, acc_norm=P('Acceleration Normal'),
-               acc_long=P('Acceleration Longitudinal Offset Removed'),
+               acc_long=P('Acceleration Longitudinal'),
                alt=P('Altitude AAL'),
                alt_rad=P('Altitude Radio'),
                gog=M('Gear On Ground'),

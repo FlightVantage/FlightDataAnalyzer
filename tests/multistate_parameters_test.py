@@ -2911,7 +2911,7 @@ class TestSmokeWarning(unittest.TestCase):
             'Smoke BCRC',
             'Smoke Autonomous VCC',
         ]
-        derived_args = inspect.getargspec(self.node_class.derive).defaults
+        derived_args = inspect.getfullargspec(self.node_class.derive).defaults
         derived_params = [n.name for n in derived_args]
         self.assertEqual(len(derived_params), len(expected_params))
         self.assertEqual(sorted(derived_params), sorted(expected_params))

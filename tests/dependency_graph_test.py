@@ -576,7 +576,7 @@ Node: Start Datetime 	Pre: [] 	Succ: [] 	Neighbors: [] 	Edges: []
 
     def test_acceleration_normal_offset_processing_order(self):
         # In the past, the KPV 'Acceleration Normal Offset' got straved out of
-        # the dependency processing order as 'Acceleration Normal Offset Removed'
+        # the dependency processing order as 'Acceleration Normal'
         # could be derived without it. Test to ensure that the dependency tree
         # order doesn't do that again
         aircraft_info, lfl_params = self._example_recorded_parameters()
@@ -584,13 +584,13 @@ Node: Start Datetime 	Pre: [] 	Succ: [] 	Neighbors: [] 	Edges: []
         order, _ = self._get_dependency_order(requested, aircraft_info,
                                               lfl_params, raise_cir_dep=False)
         self.assertIn('Acceleration Normal Offset', order)
-        self.assertIn('Acceleration Normal Offset Removed', order)
+        self.assertIn('Acceleration Normal', order)
         self.assertLess(order.index('Acceleration Normal Offset'),
-                        order.index('Acceleration Normal Offset Removed'))
+                        order.index('Acceleration Normal'))
 
     def test_acceleration_lateral_offset_processing_order(self):
         # In the past, the KPV 'Acceleration Lateral Offset' got straved out of
-        # the dependency processing order as 'Acceleration Lateral Offset Removed'
+        # the dependency processing order as 'Acceleration Lateral'
         # could be derived without it. Test to ensure that the dependency tree
         # order doesn't do that again
         aircraft_info, lfl_params = self._example_recorded_parameters()
@@ -598,9 +598,9 @@ Node: Start Datetime 	Pre: [] 	Succ: [] 	Neighbors: [] 	Edges: []
         order, _ = self._get_dependency_order(requested, aircraft_info,
                                               lfl_params, raise_cir_dep=False)
         self.assertIn('Acceleration Lateral Offset', order)
-        self.assertIn('Acceleration Lateral Offset Removed', order)
+        self.assertIn('Acceleration Lateral', order)
         self.assertLess(order.index('Acceleration Lateral Offset'),
-                        order.index('Acceleration Lateral Offset Removed'))
+                        order.index('Acceleration Lateral'))
 
     def test_processing_order_magnetic_variation_from_runway(self):
         # In the past Magnetic Variation From Runway failed to the derived at

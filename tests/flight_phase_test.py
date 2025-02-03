@@ -2125,15 +2125,15 @@ class TestRejectedTakeoff(unittest.TestCase):
     '''
     def test_can_operate(self):
         expected = [
-            ('Acceleration Longitudinal Offset Removed', 'Eng (*) All Running',
+            ('Acceleration Longitudinal', 'Eng (*) All Running',
              'Grounded', 'Takeoff Runway Heading', 'Segment Type'),
-            ('Acceleration Longitudinal Offset Removed', 'Eng (*) All Running',
+            ('Acceleration Longitudinal', 'Eng (*) All Running',
              'Grounded', 'Eng (*) N1 Max', 'Takeoff Runway Heading',
              'Segment Type'),
-            ('Acceleration Longitudinal Offset Removed', 'Eng (*) All Running',
+            ('Acceleration Longitudinal', 'Eng (*) All Running',
              'Grounded', 'Takeoff Acceleration Start', 'Takeoff Runway Heading',
              'Segment Type'),
-            ('Acceleration Longitudinal Offset Removed', 'Eng (*) All Running',
+            ('Acceleration Longitudinal', 'Eng (*) All Running',
              'Grounded', 'Eng (*) N1 Max', 'Takeoff Acceleration Start',
              'Takeoff Runway Heading', 'Segment Type')
         ]
@@ -2144,24 +2144,24 @@ class TestRejectedTakeoff(unittest.TestCase):
         )
 
         expected = [
-            ('Acceleration Longitudinal Offset Removed', 'Eng (*) All Running',
+            ('Acceleration Longitudinal', 'Eng (*) All Running',
              'Grounded', 'Segment Type'),
-            ('Acceleration Longitudinal Offset Removed', 'Eng (*) All Running',
+            ('Acceleration Longitudinal', 'Eng (*) All Running',
              'Grounded', 'Eng (*) N1 Max', 'Segment Type'),
-            ('Acceleration Longitudinal Offset Removed', 'Eng (*) All Running',
+            ('Acceleration Longitudinal', 'Eng (*) All Running',
              'Grounded', 'Takeoff Acceleration Start', 'Segment Type'),
-            ('Acceleration Longitudinal Offset Removed', 'Eng (*) All Running',
+            ('Acceleration Longitudinal', 'Eng (*) All Running',
              'Grounded', 'Takeoff Runway Heading', 'Segment Type'),
-            ('Acceleration Longitudinal Offset Removed', 'Eng (*) All Running',
+            ('Acceleration Longitudinal', 'Eng (*) All Running',
              'Grounded', 'Eng (*) N1 Max', 'Takeoff Acceleration Start',
              'Segment Type'),
-            ('Acceleration Longitudinal Offset Removed', 'Eng (*) All Running',
+            ('Acceleration Longitudinal', 'Eng (*) All Running',
              'Grounded', 'Eng (*) N1 Max', 'Takeoff Runway Heading',
              'Segment Type'),
-            ('Acceleration Longitudinal Offset Removed', 'Eng (*) All Running',
+            ('Acceleration Longitudinal', 'Eng (*) All Running',
              'Grounded', 'Takeoff Acceleration Start', 'Takeoff Runway Heading',
              'Segment Type'),
-            ('Acceleration Longitudinal Offset Removed', 'Eng (*) All Running',
+            ('Acceleration Longitudinal', 'Eng (*) All Running',
              'Grounded', 'Eng (*) N1 Max', 'Takeoff Acceleration Start',
              'Takeoff Runway Heading', 'Segment Type'),
         ]
@@ -2177,7 +2177,7 @@ class TestRejectedTakeoff(unittest.TestCase):
         )
 
     def test_derive_one_rejected_takeoff(self):
-        accel_lon = P('Acceleration Longitudinal Offset Removed',
+        accel_lon = P('Acceleration Longitudinal',
                       np.ma.array([0] * 3 + [0.02, 0.05, 0.02, 0, -0.17,] + [0] * 7 +
                                   [0.2, 0.4, 0.1] + [0.11] * 4 + [0] * 6 + [-2] +
                                   [0] * 5 + [0.02, 0.08, 0.08, 0.08, 0.08] + [0] * 20)*1.5)
@@ -2197,7 +2197,7 @@ class TestRejectedTakeoff(unittest.TestCase):
 
     def test_derive_two_rejected_takeoffs(self):
 
-        accel_lon = P('Acceleration Longitudinal Offset Removed',
+        accel_lon = P('Acceleration Longitudinal',
                       np.ma.array([0] * 3 + [0.02, 0.05, 0.11, 0, -0.17,] + [0] * 7 +
                                   [0.2, 0.4, 0.1] + [0.11] * 4 + [0] * 6 + [-2] +
                                   [0] * 5 + [0.02, 0.08, 0.08, 0.08, 0.08] + [0] * 20)*1.5)
@@ -2219,7 +2219,7 @@ class TestRejectedTakeoff(unittest.TestCase):
 
 
     def test_derive_one_rejected_takeoff_with_two_acceleration_spikes(self):
-        accel_lon = P('Acceleration Longitudinal Offset Removed',
+        accel_lon = P('Acceleration Longitudinal',
                           np.ma.array([0] * 3 + [0.02, 0.05, 0.02, 0, -0.17,] + [0] * 7 +
                                       [0.2, 0.4, 0.1] + [0.11] * 4 + [0] * 6 + [0.2, 0.4, 0.1] +
                                       [0.11] * 4 + [0] * 6  + [-0.2] + [0] * 5 +

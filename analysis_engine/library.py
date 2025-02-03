@@ -368,7 +368,7 @@ def align_args(slave_array, slave_frequency, slave_offset, master_frequency, mas
     '''
 
     original_array = slave_array
-    if slave_array.dtype.type is np.string_:
+    if slave_array.dtype.type is np.bytes_:
         # by converting string arrays to multistate arrays we can use
         # established aligning process
         slave_array = string_array_to_mapped_array(slave_array)
@@ -505,13 +505,13 @@ def align_args(slave_array, slave_frequency, slave_offset, master_frequency, mas
             # ends of the array.
             slave_aligned[i::wm] = a*slave_array[h::ws] + b*slave_array[h1::ws]
 
-    if isinstance(original_array, MappedArray) or original_array.dtype.type is np.string_:
+    if isinstance(original_array, MappedArray) or original_array.dtype.type is np.bytes_:
         # return back to mapped array
         mapped_array = MappedArray(np.ma.zeros(len(slave_aligned)).astype(_dtype), values_mapping=mappings)
         mapped_array[:] = slave_aligned[:]
         slave_aligned = mapped_array
 
-    if original_array.dtype.type is np.string_:
+    if original_array.dtype.type is np.bytes_:
         # return back to string array
         slave_aligned = mapped_array_to_string_array(slave_aligned)
 

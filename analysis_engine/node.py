@@ -161,7 +161,7 @@ def get_param_kwarg_names(method):
     :rtype: list
     """
     try:
-        args, varargs, varkw, defaults = inspect.getargspec(method)
+        args, varargs, varkw, defaults = inspect.getfullargspec(method)
     except AttributeError:
         args, varargs, varkw, defaults = inspect.getfullargspec(method)[:4]
     if not defaults or args[:-len(defaults)] != ['self'] or varargs:
@@ -933,7 +933,7 @@ class MultistateDerivedParameterNode(DerivedParameterNode):
                     #int_array = value.astype(int)
                 #except ValueError:
                     ## could not convert, therefore likely to be strings inside
-            if value.dtype.type in (np.str_, np.string_, np.object_):
+            if value.dtype.type in (np.str_, np.bytes_, np.object_):
                 # Array contains strings, convert to ints with mapping.
                 value = multistate_string_to_integer(value, self.values_mapping)
             value = MappedArray(value, values_mapping=self.values_mapping)
@@ -2530,7 +2530,7 @@ class NodeManager(object):
             # NOTE: Raises "Unbound method" here due to can_operate being
             # overridden without wrapping with @classmethod decorator
             attributes = []
-            argspec = inspect.getargspec(derived_node.can_operate)
+            argspec = inspect.getfullargspec(derived_node.can_operate)
             if argspec.defaults:
                 for default in argspec.defaults:
                     if not isinstance(default, Attribute):

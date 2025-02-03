@@ -1186,8 +1186,8 @@ class TestAccelerationLateralMax(unittest.TestCase, NodeTest):
     def setUp(self):
         self.node_class = AccelerationLateralMax
         self.operational_combinations = [
-            ('Acceleration Lateral Offset Removed',),
-            ('Acceleration Lateral Offset Removed', 'Groundspeed'),
+            ('Acceleration Lateral',),
+            ('Acceleration Lateral', 'Groundspeed'),
         ]
 
     @unittest.skip('Test Not Implemented')
@@ -1199,7 +1199,7 @@ class TestAccelerationLateralAtTouchdown(unittest.TestCase, NodeTest):
 
     def setUp(self):
         self.node_class = AccelerationLateralAtTouchdown
-        self.operational_combinations = [('Acceleration Lateral Offset Removed', 'Touchdown')]
+        self.operational_combinations = [('Acceleration Lateral', 'Touchdown')]
 
     @patch('analysis_engine.key_point_values.bump')
     def test_derive(self, bump):
@@ -1225,7 +1225,7 @@ class TestAccelerationLateralDuringTakeoffMax(unittest.TestCase, CreateKPVsWithi
 
     def setUp(self):
         self.node_class = AccelerationLateralDuringTakeoffMax
-        self.operational_combinations = [('Acceleration Lateral Offset Removed', 'Takeoff Roll')]
+        self.operational_combinations = [('Acceleration Lateral', 'Takeoff Roll')]
         self.function = max_abs_value
 
     @unittest.skip('Test Not Implemented')
@@ -1237,7 +1237,7 @@ class TestAccelerationLateralDuringLandingMax(unittest.TestCase, NodeTest):
 
     def setUp(self):
         self.node_class = AccelerationLateralDuringLandingMax
-        self.operational_combinations = [('Acceleration Lateral Offset Removed', 'Landing Roll', 'FDR Landing Runway')]
+        self.operational_combinations = [('Acceleration Lateral', 'Landing Roll', 'FDR Landing Runway')]
 
     @unittest.skip('Test Not Implemented')
     def test_derive(self):
@@ -1248,11 +1248,11 @@ class TestAccelerationLateralWhileAirborneMax(unittest.TestCase, NodeTest):
 
     def setUp(self):
         self.node_class = AccelerationLateralWhileAirborneMax
-        self.operational_combinations = [('Acceleration Lateral Offset Removed', 'Airborne')]
+        self.operational_combinations = [('Acceleration Lateral', 'Airborne')]
 
     def test_derive(self):
         array = -0.1 + np.ma.sin(np.arange(0, 3.14*2, 0.04))
-        accel_lat = P(name='Acceleration Lateral Offset Removed', array=array)
+        accel_lat = P(name='Acceleration Lateral', array=array)
         airborne = buildsection('Airborne', 5, 150)
         node = self.node_class()
         node.derive(accel_lat, airborne)
@@ -1405,18 +1405,18 @@ class TestAccelerationLateralFor5SecMax(unittest.TestCase):
 
     def test_can_operate(self):
         opts = self.node_class.get_operational_combinations()
-        self.assertEqual(opts, [('Acceleration Lateral Offset Removed',)])
+        self.assertEqual(opts, [('Acceleration Lateral',)])
 
     def test_can_operate_787(self):
         self.assertFalse(
-            self.node_class.can_operate(('Acceleration Lateral Offset Removed',),
+            self.node_class.can_operate(('Acceleration Lateral',),
                                         frame=A('Frame', value='787_frame'))
         )
 
     def test_derive(self):
         x = np.linspace(0, 10, 400)
         accel_lat = P(
-            name='Acceleration Lateral Offset Removed',
+            name='Acceleration Lateral',
             array=-x*np.sin(x),
             frequency=4
         )
@@ -1531,7 +1531,7 @@ class TestAccelerationLongitudinalDuringTakeoffMax(unittest.TestCase, CreateKPVF
 
     def setUp(self):
         self.node_class = AccelerationLongitudinalDuringTakeoffMax
-        self.operational_combinations = [('Acceleration Longitudinal Offset Removed', 'Takeoff')]
+        self.operational_combinations = [('Acceleration Longitudinal', 'Takeoff')]
         self.function = max_value
 
     @unittest.skip('Test Not Implemented')
@@ -1543,7 +1543,7 @@ class TestAccelerationLongitudinalDuringLandingMin(unittest.TestCase, CreateKPVF
 
     def setUp(self):
         self.node_class = AccelerationLongitudinalDuringLandingMin
-        self.operational_combinations = [('Acceleration Longitudinal Offset Removed', 'Landing')]
+        self.operational_combinations = [('Acceleration Longitudinal', 'Landing')]
         self.function = min_value
 
     @unittest.skip('Test Not Implemented')
@@ -1557,7 +1557,7 @@ class TestAccelerationLongitudinalWhileAirborneMax(unittest.TestCase,
     def setUp(self):
         self.node_class = AccelerationLongitudinalWhileAirborneMax
         self.operational_combinations = [
-            ('Acceleration Longitudinal Offset Removed', 'Airborne')
+            ('Acceleration Longitudinal', 'Airborne')
         ]
 
     def test_attributes(self):
@@ -1572,7 +1572,7 @@ class TestAccelerationLongitudinalWhileAirborneMax(unittest.TestCase,
 
     def test_derive(self):
         array = -0.1 + np.ma.sin(np.arange(0, 3.14*2, 0.04))
-        accel_long = P(name='Acceleration Longitudinal Offset Removed',
+        accel_long = P(name='Acceleration Longitudinal',
                        array=array)
         airborne = buildsection('Airborne', 5, 150)
         node = self.node_class()
@@ -1590,7 +1590,7 @@ class TestAccelerationNormalMax(unittest.TestCase, CreateKPVFromSlicesTest):
 
     def setUp(self):
         self.node_class = AccelerationNormalMax
-        self.operational_combinations = [('Acceleration Normal Offset Removed', 'Mobile')]
+        self.operational_combinations = [('Acceleration Normal', 'Mobile')]
         self.function = max_value
 
     @unittest.skip('Test Not Implemented')
@@ -1603,7 +1603,7 @@ class TestAccelerationNormal20FtTo5FtMax(unittest.TestCase, CreateKPVsWithinSlic
     def setUp(self):
         self.node_class = AccelerationNormal20FtTo5FtMax
         self.can_operate_kwargs = {'ac_type': aeroplane}
-        self.operational_combinations = [('Acceleration Normal Offset Removed', 'Altitude AAL For Flight Phases')]
+        self.operational_combinations = [('Acceleration Normal', 'Altitude AAL For Flight Phases')]
         self.function = max_value
         self.second_param_method_calls = [('slices_from_to', (20, 5), {})]
 
@@ -1613,7 +1613,7 @@ class TestAccelerationNormal20FtTo5FtMax(unittest.TestCase, CreateKPVsWithinSlic
         '''
         # Test height range limit:
         alt_aal = P('Altitude AAL For Flight Phases', np.ma.arange(48, 0, -3))
-        acc_norm = P('Acceleration Normal Offset Removed', np.ma.concatenate((np.arange(10, 18), np.arange(18, 10, -1))) / 10.0)
+        acc_norm = P('Acceleration Normal', np.ma.concatenate((np.arange(10, 18), np.arange(18, 10, -1))) / 10.0)
         node = AccelerationNormal20FtTo5FtMax()
         node.derive(acc_norm, alt_aal)
         self.assertEqual(node, [
@@ -1633,9 +1633,9 @@ class TestAccelerationNormalWithFlapUpWhileAirborneMax(unittest.TestCase, NodeTe
     def setUp(self):
         self.node_class = AccelerationNormalWithFlapUpWhileAirborneMax
         self.operational_combinations = [
-            ('Acceleration Normal Offset Removed', 'Flap Lever', 'Airborne'),
-            ('Acceleration Normal Offset Removed', 'Flap Lever (Synthetic)', 'Airborne'),
-            ('Acceleration Normal Offset Removed', 'Flap Lever', 'Flap Lever (Synthetic)', 'Airborne'),
+            ('Acceleration Normal', 'Flap Lever', 'Airborne'),
+            ('Acceleration Normal', 'Flap Lever (Synthetic)', 'Airborne'),
+            ('Acceleration Normal', 'Flap Lever', 'Flap Lever (Synthetic)', 'Airborne'),
         ]
 
     def test_derive(self):
@@ -1670,9 +1670,9 @@ class TestAccelerationNormalWithFlapUpWhileAirborneMin(unittest.TestCase, NodeTe
     def setUp(self):
         self.node_class = AccelerationNormalWithFlapUpWhileAirborneMin
         self.operational_combinations = [
-            ('Acceleration Normal Offset Removed', 'Flap Lever', 'Airborne'),
-            ('Acceleration Normal Offset Removed', 'Flap Lever (Synthetic)', 'Airborne'),
-            ('Acceleration Normal Offset Removed', 'Flap Lever', 'Flap Lever (Synthetic)', 'Airborne'),
+            ('Acceleration Normal', 'Flap Lever', 'Airborne'),
+            ('Acceleration Normal', 'Flap Lever (Synthetic)', 'Airborne'),
+            ('Acceleration Normal', 'Flap Lever', 'Flap Lever (Synthetic)', 'Airborne'),
         ]
 
     def test_derive(self):
@@ -1707,9 +1707,9 @@ class TestAccelerationNormalWithFlapDownWhileAirborneMax(unittest.TestCase, Node
     def setUp(self):
         self.node_class = AccelerationNormalWithFlapDownWhileAirborneMax
         self.operational_combinations = [
-            ('Acceleration Normal Offset Removed', 'Flap Lever', 'Airborne'),
-            ('Acceleration Normal Offset Removed', 'Flap Lever (Synthetic)', 'Airborne'),
-            ('Acceleration Normal Offset Removed', 'Flap Lever', 'Flap Lever (Synthetic)', 'Airborne'),
+            ('Acceleration Normal', 'Flap Lever', 'Airborne'),
+            ('Acceleration Normal', 'Flap Lever (Synthetic)', 'Airborne'),
+            ('Acceleration Normal', 'Flap Lever', 'Flap Lever (Synthetic)', 'Airborne'),
         ]
 
     def test_derive(self):
@@ -1744,9 +1744,9 @@ class TestAccelerationNormalWithFlapDownWhileAirborneMin(unittest.TestCase, Node
     def setUp(self):
         self.node_class = AccelerationNormalWithFlapDownWhileAirborneMin
         self.operational_combinations = [
-            ('Acceleration Normal Offset Removed', 'Flap Lever', 'Airborne'),
-            ('Acceleration Normal Offset Removed', 'Flap Lever (Synthetic)', 'Airborne'),
-            ('Acceleration Normal Offset Removed', 'Flap Lever', 'Flap Lever (Synthetic)', 'Airborne'),
+            ('Acceleration Normal', 'Flap Lever', 'Airborne'),
+            ('Acceleration Normal', 'Flap Lever (Synthetic)', 'Airborne'),
+            ('Acceleration Normal', 'Flap Lever', 'Flap Lever (Synthetic)', 'Airborne'),
         ]
 
     def test_derive(self):
@@ -1779,7 +1779,7 @@ class TestAccelerationNormalWithFlapDownWhileAirborneMin(unittest.TestCase, Node
 class TestAccelerationNormalAboveLimitWithFlapDownWhileAirborne(unittest.TestCase, NodeTest):
     def setUp(self):
         self.node_class = AccelerationNormalAboveLimitWithFlapDownWhileAirborne
-        self.operational_combinations = [('Acceleration Normal Offset Removed',
+        self.operational_combinations = [('Acceleration Normal',
                                           'Acceleration Normal High Limit With Flaps Down',
                                         'Airborne')]
 
@@ -1788,7 +1788,7 @@ class TestAccelerationNormalAboveLimitWithFlapDownWhileAirborne(unittest.TestCas
         array[100] = 2.2
         array[130] = 1.8  # On ground
         array[160] = 1.6
-        acc_norm = P('Acceleration Normal Offset Removed', array=array)
+        acc_norm = P('Acceleration Normal', array=array)
         acc_limit = P('Acceleration Normal High Limit With Flaps Down',
                       array=np.ma.repeat(2.0, 200))
         airborne = buildsections('Airborne', [30, 120], [150, 180])
@@ -1804,7 +1804,7 @@ class TestAccelerationNormalAtLiftoff(unittest.TestCase, NodeTest):
 
     def setUp(self):
         self.node_class = AccelerationNormalAtLiftoff
-        self.operational_combinations = [('Acceleration Normal Offset Removed', 'Liftoff')]
+        self.operational_combinations = [('Acceleration Normal', 'Liftoff')]
 
     @patch('analysis_engine.key_point_values.bump')
     def test_derive(self, bump):
@@ -1831,9 +1831,9 @@ class TestAccelerationNormalAtTouchdown(unittest.TestCase, NodeTest):
     def setUp(self):
         self.node_class = AccelerationNormalAtTouchdown
         self.operational_combinations = [
-            ('Acceleration Normal Offset Removed', 'Touchdown', 'Landing', 'Landing Roll', 'Touch And Go'),
-            ('Acceleration Normal Offset Removed', 'Touchdown', 'Landing', 'Landing Roll', 'Touch And Go'),
-            ('Acceleration Normal Offset Removed', 'Touchdown', 'Landing', 'Landing Roll'),
+            ('Acceleration Normal', 'Touchdown', 'Landing', 'Landing Roll', 'Touch And Go'),
+            ('Acceleration Normal', 'Touchdown', 'Landing', 'Landing Roll', 'Touch And Go'),
+            ('Acceleration Normal', 'Touchdown', 'Landing', 'Landing Roll'),
         ]
 
     @patch('analysis_engine.key_point_values.bump')
@@ -2525,7 +2525,7 @@ class TestAccelerationNormalLiftoffTo35FtMax(unittest.TestCase, NodeTest):
     def setUp(self):
         self.node_class = AccelerationNormalLiftoffTo35FtMax
         self.can_operate_kwargs = {'ac_type': aeroplane}
-        self.operational_combinations = [('Acceleration Normal Offset Removed', 'Liftoff', 'Takeoff')]
+        self.operational_combinations = [('Acceleration Normal', 'Liftoff', 'Takeoff')]
         self.function = max_value
 
     def test_derive(self):
@@ -2637,12 +2637,12 @@ class TestAccelerationNormalWhileAirborneMax(unittest.TestCase):
 
     def test_can_operate(self):
         opts = self.node_class.get_operational_combinations()
-        self.assertEqual(opts, [('Acceleration Normal Offset Removed', 'Airborne')])
+        self.assertEqual(opts, [('Acceleration Normal', 'Airborne')])
 
     def test_derive(self):
         x = np.linspace(0, 10, 400)
         accel_lat = P(
-            name='Acceleration Normal Offset Removed',
+            name='Acceleration Normal',
             array=-x*np.sin(x),
             frequency=4)
         name = 'Airborne'
@@ -2664,12 +2664,12 @@ class TestAccelerationNormalWhileAirborneMin(unittest.TestCase):
 
     def test_can_operate(self):
         opts = self.node_class.get_operational_combinations()
-        self.assertEqual(opts, [('Acceleration Normal Offset Removed', 'Airborne')])
+        self.assertEqual(opts, [('Acceleration Normal', 'Airborne')])
 
     def test_derive(self):
         x = np.linspace(0, 10, 400)
         accel_lat = P(
-            name='Acceleration Normal Offset Removed',
+            name='Acceleration Normal',
             array=-x*np.sin(x),
             frequency=4
         )
@@ -15736,9 +15736,9 @@ class TestGroundspeedDuringRejectedTakeoffMax(unittest.TestCase):
 
     def test_can_operate(self):
         expected = [
-            ('Acceleration Longitudinal Offset Removed', 'Rejected Takeoff'),
+            ('Acceleration Longitudinal', 'Rejected Takeoff'),
             ('Groundspeed Signed', 'Rejected Takeoff'),
-            ('Acceleration Longitudinal Offset Removed', 'Groundspeed Signed', 'Rejected Takeoff')
+            ('Acceleration Longitudinal', 'Groundspeed Signed', 'Rejected Takeoff')
         ]
         opts = GroundspeedDuringRejectedTakeoffMax.get_operational_combinations()
         self.assertEqual(opts, expected)
@@ -15756,7 +15756,7 @@ class TestGroundspeedDuringRejectedTakeoffMax(unittest.TestCase):
     def test_no_gspd(self):
         sinewave = np.ma.sin(np.arange(0, 3.14*2, 0.04))*0.4
         testwave = [0]*150+sinewave.tolist()+[0]*193 # To match array sizes
-        accel = P('Acceleration Longitudinal Offset Removed',
+        accel = P('Acceleration Longitudinal',
                   testwave, frequency=4.0, offset=0.2)
         gnds = buildsections('Grounded', [0, 125], [400, 500])
         eng_running = M('Eng (*) All Running', np_ma_ones_like(accel.array),

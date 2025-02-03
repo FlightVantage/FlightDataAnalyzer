@@ -375,7 +375,7 @@ class NodeTest(object):
 class TestAccelerationLateralSmoothed(unittest.TestCase):
     def test_can_operate(self):
         opts = AccelerationLateralSmoothed.get_operational_combinations()
-        self.assertEqual(opts, [('Acceleration Lateral Offset Removed',)])
+        self.assertEqual(opts, [('Acceleration Lateral',)])
 
     def test_smoothing(self):
         acc = AccelerationLateralSmoothed()
@@ -388,8 +388,8 @@ class TestAccelerationLateralSmoothed(unittest.TestCase):
 
 class TestAccelerationVertical(unittest.TestCase):
     def test_can_operate(self):
-        expected = [('Acceleration Normal Offset Removed',
-                     'Acceleration Lateral Offset Removed',
+        expected = [('Acceleration Normal',
+                     'Acceleration Lateral',
                      'Acceleration Longitudinal', 'Pitch', 'Roll')]
         opts = AccelerationVertical.get_operational_combinations()
         self.assertEqual(opts, expected)
@@ -399,8 +399,8 @@ class TestAccelerationVertical(unittest.TestCase):
         acc_vert = AccelerationVertical(frequency=8)
 
         acc_vert.get_derived([
-            Parameter('Acceleration Normal Offset Removed', np.ma.ones(8), 8),
-            Parameter('Acceleration Lateral Offset Removed', np.ma.zeros(4), 4),
+            Parameter('Acceleration Normal', np.ma.ones(8), 8),
+            Parameter('Acceleration Lateral', np.ma.zeros(4), 4),
             Parameter('Acceleration Longitudinal', np.ma.zeros(4), 4),
             Parameter('Pitch', np.ma.zeros(2), 2),
             Parameter('Roll', np.ma.zeros(2), 2),
@@ -416,8 +416,8 @@ class TestAccelerationVertical(unittest.TestCase):
         acc_vert = AccelerationVertical(frequency=8)
 
         acc_vert.get_derived([
-            P('Acceleration Normal Offset Removed', np.ma.ones(8) * 0.8660254,8),
-            P('Acceleration Lateral Offset Removed', np.ma.zeros(4), 4),
+            P('Acceleration Normal', np.ma.ones(8) * 0.8660254,8),
+            P('Acceleration Lateral', np.ma.zeros(4), 4),
             P('Acceleration Longitudinal', np.ma.ones(4) * 0.5,4),
             P('Pitch', np.ma.ones(2) * 30.0,2),
             P('Roll', np.ma.zeros(2), 2)
@@ -433,8 +433,8 @@ class TestAccelerationVertical(unittest.TestCase):
         acc_vert = AccelerationVertical(frequency=8)
 
         acc_vert.get_derived([
-            P('Acceleration Normal Offset Removed', np.ma.ones(8) * 0.8, 8),
-            P('Acceleration Lateral Offset Removed', np.ma.ones(4) * (-0.2), 4),
+            P('Acceleration Normal', np.ma.ones(8) * 0.8, 8),
+            P('Acceleration Lateral', np.ma.ones(4) * (-0.2), 4),
             P('Acceleration Longitudinal', np.ma.ones(4) * 0.3, 4),
             P('Pitch',np.ma.ones(2) * 30.0, 2),
             P('Roll',np.ma.ones(2) * 20, 2)])
@@ -446,8 +446,8 @@ class TestAccelerationVertical(unittest.TestCase):
         acc_vert = AccelerationVertical(frequency=8)
 
         acc_vert.get_derived([
-            P('Acceleration Normal Offset Removed', np.ma.ones(8) * 0.7071068, 8),
-            P('Acceleration Lateral Offset Removed', np.ma.ones(4) * -0.7071068, 4),
+            P('Acceleration Normal', np.ma.ones(8) * 0.7071068, 8),
+            P('Acceleration Lateral', np.ma.ones(4) * -0.7071068, 4),
             P('Acceleration Longitudinal', np.ma.zeros(4), 4),
             P('Pitch', np.ma.zeros(2), 2),
             P('Roll', np.ma.ones(2) * 45, 2),
@@ -461,7 +461,7 @@ class TestAccelerationVertical(unittest.TestCase):
 
 class TestAccelerationForwards(unittest.TestCase):
     def test_can_operate(self):
-        expected = [('Acceleration Normal Offset Removed',
+        expected = [('Acceleration Normal',
                     'Acceleration Longitudinal', 'Pitch')]
         opts = AccelerationForwards.get_operational_combinations()
         self.assertEqual(opts, expected)
@@ -471,7 +471,7 @@ class TestAccelerationForwards(unittest.TestCase):
         acc_fwd = AccelerationForwards(frequency=4)
 
         acc_fwd.get_derived([
-            Parameter('Acceleration Normal Offset Removed', np.ma.ones(8), 8),
+            Parameter('Acceleration Normal', np.ma.ones(8), 8),
             Parameter('Acceleration Longitudinal', np.ma.ones(4) * 0.1,4),
             Parameter('Pitch', np.ma.zeros(2), 2)
         ])
@@ -484,7 +484,7 @@ class TestAccelerationForwards(unittest.TestCase):
         acc_fwd = AccelerationForwards(frequency=4)
 
         acc_fwd.get_derived([
-            P('Acceleration Normal Offset Removed', np.ma.ones(8) * 0.8660254, 8),
+            P('Acceleration Normal', np.ma.ones(8) * 0.8660254, 8),
             P('Acceleration Longitudinal', np.ma.ones(4) * 0.5, 4),
             P('Pitch', np.ma.ones(2) * 30.0, 2)
         ])
@@ -497,8 +497,8 @@ class TestAccelerationForwards(unittest.TestCase):
 
 class TestAccelerationSideways(unittest.TestCase):
     def test_can_operate(self):
-        expected = [('Acceleration Normal Offset Removed',
-                    'Acceleration Lateral Offset Removed',
+        expected = [('Acceleration Normal',
+                    'Acceleration Lateral',
                     'Acceleration Longitudinal', 'Pitch', 'Roll')]
         opts = AccelerationSideways.get_operational_combinations()
         self.assertEqual(opts, expected)
@@ -508,8 +508,8 @@ class TestAccelerationSideways(unittest.TestCase):
         acc_lat = AccelerationSideways(frequency=8)
 
         acc_lat.get_derived([
-            Parameter('Acceleration Normal Offset Removed', np.ma.ones(8),8),
-            Parameter('Acceleration Lateral Offset Removed', np.ma.ones(4)*0.05,4),
+            Parameter('Acceleration Normal', np.ma.ones(8),8),
+            Parameter('Acceleration Lateral', np.ma.ones(4)*0.05,4),
             Parameter('Acceleration Longitudinal', np.ma.zeros(4),4),
             Parameter('Pitch', np.ma.zeros(2),2),
             Parameter('Roll', np.ma.zeros(2),2)
@@ -524,8 +524,8 @@ class TestAccelerationSideways(unittest.TestCase):
         acc_lat = AccelerationSideways(frequency=8)
 
         acc_lat.get_derived([
-            P('Acceleration Normal Offset Removed',np.ma.ones(8)*0.8660254,8),
-            P('Acceleration Lateral Offset Removed',np.ma.zeros(4),4),
+            P('Acceleration Normal',np.ma.ones(8)*0.8660254,8),
+            P('Acceleration Lateral',np.ma.zeros(4),4),
             P('Acceleration Longitudinal',np.ma.ones(4)*0.5,4),
             P('Pitch',np.ma.ones(2)*30.0,2),
             P('Roll',np.ma.zeros(2),2)
@@ -540,8 +540,8 @@ class TestAccelerationSideways(unittest.TestCase):
         acc_lat = AccelerationSideways(frequency=8)
 
         acc_lat.get_derived([
-            P('Acceleration Normal Offset Removed',np.ma.ones(8)*0.7071068,8),
-            P('Acceleration Lateral Offset Removed',np.ma.ones(4)*(-0.7071068),4),
+            P('Acceleration Normal',np.ma.ones(8)*0.7071068,8),
+            P('Acceleration Lateral',np.ma.ones(4)*(-0.7071068),4),
             P('Acceleration Longitudinal',np.ma.zeros(4),4),
             P('Pitch',np.ma.zeros(2),2),
             P('Roll',np.ma.ones(2)*45,2)
@@ -931,7 +931,7 @@ class TestAltitudeAAL(unittest.TestCase):
     def test_can_operate(self):
         opts = AltitudeAAL.get_operational_combinations()
         self.assertTrue(('Altitude STD Smoothed', 'Fast') in opts)
-        self.assertTrue(('Altitude Radio Offset Removed', 'Altitude STD Smoothed', 'Fast') in opts)
+        self.assertTrue(('Altitude Radio', 'Altitude STD Smoothed', 'Fast') in opts)
 
     def test_alt_aal_basic(self):
         data = np.ma.array([-3, 0, 30, 80, 250,] + [560]*10 + [560, 220, 70, 20, -5])
@@ -1987,7 +1987,7 @@ class TestAltitudeRadioOffsetRemoved(unittest.TestCase):
 """
 class TestAltitudeRadioForFlightPhases(unittest.TestCase):
     def test_can_operate(self):
-        expected = [('Altitude Radio Offset Removed',)]
+        expected = [('Altitude Radio',)]
         opts = AltitudeRadioForFlightPhases.get_operational_combinations()
         self.assertEqual(opts, expected)
 
@@ -6427,7 +6427,7 @@ class TestVerticalSpeedInertial(unittest.TestCase):
     def test_can_operate(self):
         opts = VerticalSpeedInertial.get_operational_combinations()
         self.assertEqual(opts, [('Acceleration Vertical', 'Altitude STD Smoothed',
-                                 'Altitude Radio Offset Removed', 'Fast',
+                                 'Altitude Radio', 'Fast',
                                  'Aircraft Type')])
 
     def test_derive(self):

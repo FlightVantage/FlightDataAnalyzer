@@ -10,7 +10,7 @@ from copy import deepcopy
 from datetime import date
 from math import radians
 from operator import attrgetter
-from scipy import interp
+from numpy import interp
 from scipy.interpolate import InterpolatedUnivariateSpline
 from scipy.signal import medfilt
 
@@ -135,29 +135,6 @@ from flightdatautilities.numpy_utils import (
 # There is no numpy masked array function for radians, so we just multiply thus:
 deg2rad = radians(1.0)
 
-
-class AccelerationLateralOffsetRemoved(DerivedParameterNode):
-    '''
-    This process attempts to remove datum errors in the lateral accelerometer.
-    '''
-
-    units = ut.G
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return 'Acceleration Lateral' in available
-
-    def derive(self,
-               acc=P('Acceleration Lateral'),
-               offset=KPV('Acceleration Lateral Offset')):
-
-        if offset:
-            self.array = acc.array - offset[0].value
-        else:
-            self.array = acc.array
-
-
 class AccelerationLateralSmoothed(DerivedParameterNode):
     '''
     Apply a moving average for two seconds (9 samples) to smooth out spikes
@@ -166,280 +143,10 @@ class AccelerationLateralSmoothed(DerivedParameterNode):
 
     units = ut.G
 
-    def derive(self, acc=P('Acceleration Lateral Offset Removed')):
+    def derive(self, acc=P('Acceleration Lateral')):
 
         self.window = acc.hz * 2 + 1  # store for ease of testing
         self.array = moving_average(acc.array, window=self.window)
-
-
-class AccelerationLongitudinalOffsetRemoved(DerivedParameterNode):
-    '''
-    This process attempts to remove datum errors in the longitudinal
-    accelerometer.
-    '''
-
-    units = ut.G
-
-    @classmethod
-    def can_operate(cls, available, seg_type=A('Segment Type')):
-        if seg_type and seg_type.value == 'GROUND_ONLY':
-            return 'Acceleration Longitudinal' in available
-        return all_of(('Acceleration Longitudinal',
-                       'Acceleration Longitudinal Offset'), available)
-
-    def derive(self,
-               acc=P('Acceleration Longitudinal'),
-               offset=KPV('Acceleration Longitudinal Offset')):
-
-        if offset:
-            self.array = acc.array - offset[0].value
-        else:
-            self.array = acc.array
-
-
-class AccelerationNormalOffsetRemoved(DerivedParameterNode):
-    '''
-    This process attempts to remove datum errors in the normal accelerometer.
-    '''
-
-    units = ut.G
-
-    @classmethod
-    def can_operate(cls, available):
-        return 'Acceleration Normal' in available
-
-    def derive(self,
-               acc=P('Acceleration Normal'),
-               offset=KPV('Acceleration Normal Offset')):
-
-        if offset:
-            # 1.0 to reset datum.
-            self.array = acc.array - offset[0].value + 1.0
-        else:
-            self.array = acc.array
-
-
-class AccelerationVertical(DerivedParameterNode):
-    """
-    Resolution of three accelerations to compute the vertical
-    acceleration (perpendicular to the earth surface). Result is in g,
-    retaining the 1.0 datum and positive upwards.
-    """
-
-    units = ut.G
-
-    def derive(self, acc_norm=P('Acceleration Normal Offset Removed'),
-               acc_lat=P('Acceleration Lateral Offset Removed'),
-               acc_long=P('Acceleration Longitudinal'),
-               pitch=P('Pitch'), roll=P('Roll')):
-        # FIXME: FloatingPointError: underflow encountered in multiply
-        pitch_rad = pitch.array * deg2rad
-        roll_rad = roll.array * deg2rad
-        resolved_in_roll = acc_norm.array * np.ma.cos(roll_rad)\
-            - acc_lat.array * np.ma.sin(roll_rad)
-        self.array = resolved_in_roll * np.ma.cos(pitch_rad) \
-                     + acc_long.array * np.ma.sin(pitch_rad)
-
-
-class AccelerationForwards(DerivedParameterNode):
-    """
-    Resolution of three body axis accelerations to compute the forward
-    acceleration, that is, in the direction of the aircraft centreline
-    when projected onto the earth's surface.
-
-    Forwards = +ve, Constant sensor errors not washed out.
-    """
-
-    units = ut.G
-
-    def derive(self, acc_norm=P('Acceleration Normal Offset Removed'),
-               acc_long=P('Acceleration Longitudinal'),
-               pitch=P('Pitch')):
-        pitch_rad = pitch.array * deg2rad
-        self.array = acc_long.array * np.ma.cos(pitch_rad)\
-                     - acc_norm.array * np.ma.sin(pitch_rad)
-
-
-class AccelerationAcrossTrack(DerivedParameterNode):
-    """
-    The forward and sideways ground-referenced accelerations are resolved
-    into along track and across track coordinates in preparation for
-    groundspeed computations.
-    """
-
-    units = ut.G
-
-    def derive(self, acc_fwd=P('Acceleration Forwards'),
-               acc_side=P('Acceleration Sideways'),
-               drift=P('Drift')):
-        drift_rad = drift.array*deg2rad
-        self.array = acc_side.array * np.ma.cos(drift_rad)\
-            - acc_fwd.array * np.ma.sin(drift_rad)
-
-
-class AccelerationAlongTrack(DerivedParameterNode):
-    """
-    The forward and sideways ground-referenced accelerations are resolved
-    into along track and across track coordinates in preparation for
-    groundspeed computations.
-    """
-
-    units = ut.G
-
-    def derive(self, acc_fwd=P('Acceleration Forwards'),
-               acc_side=P('Acceleration Sideways'),
-               drift=P('Drift')):
-        drift_rad = drift.array*deg2rad
-        self.array = acc_fwd.array * np.ma.cos(drift_rad)\
-                     + acc_side.array * np.ma.sin(drift_rad)
-
-
-class AccelerationSideways(DerivedParameterNode):
-    """
-    Resolution of three body axis accelerations to compute the lateral
-    acceleration, that is, in the direction perpendicular to the aircraft
-    centreline when projected onto the earth's surface. Right = +ve.
-    """
-
-    units = ut.G
-
-    def derive(self, acc_norm=P('Acceleration Normal Offset Removed'),
-               acc_lat=P('Acceleration Lateral Offset Removed'),
-               acc_long=P('Acceleration Longitudinal'),
-               pitch=P('Pitch'), roll=P('Roll')):
-        pitch_rad = pitch.array * deg2rad
-        roll_rad = roll.array * deg2rad
-        # Simple Numpy algorithm working on masked arrays
-        resolved_in_pitch = (acc_long.array * np.ma.sin(pitch_rad)
-                             + acc_norm.array * np.ma.cos(pitch_rad))
-        self.array = (resolved_in_pitch * np.ma.sin(roll_rad)
-                      + acc_lat.array * np.ma.cos(roll_rad))
-
-
-class AirspeedTrue(DerivedParameterNode):
-    """
-    True airspeed is computed from the recorded airspeed and pressure
-    altitude. We assume that the recorded airspeed is indicated or computed,
-    and that the pressure altitude is on standard (1013mB = 29.92 inHg).
-
-    There are a few aircraft still operating which do not record the air
-    temperature, so only these two parameters are required for the algorithm
-    to run.
-
-    Where air temperature is available, we accept Static Air Temperature
-    (SAT) and include this accordingly. If TAT is recorded, it will have
-    already been converted by the SAT derive function.
-
-    True airspeed is also extended to the ends of the takeoff and landing
-    run, in particular so that we can estimate the minimum airspeed at which
-    thrust reversers are used.
-
-    -------------------------------------------------------------------------
-    Thanks are due to Kevin Horton of Ottawa for permission to derive the
-    code here from his AeroCalc library.
-    -------------------------------------------------------------------------
-    """
-
-    units = ut.KT
-
-    @classmethod
-    def can_operate(cls, available):
-        return 'Airspeed' in available and 'Altitude STD Smoothed' in available
-
-    def derive(self, cas_p=P('Airspeed'), alt_std_p=P('Altitude STD Smoothed'),
-               sat_p=P('SAT'), toffs=S('Takeoff'), lands=S('Landing'),
-               rtos=S('Rejected Takeoff'),
-               gspd=P('Groundspeed'), acc_fwd=P('Acceleration Forwards')):
-
-        cas = cas_p.array
-        alt_std = alt_std_p.array
-        dp = cas2dp(cas)
-        if sat_p:
-            sat = sat_p.array
-            tas = dp2tas(dp, alt_std, sat)
-            combined_mask= np.logical_or(
-                np.logical_or(np.ma.getmaskarray(cas_p.array),
-                              np.ma.getmaskarray(alt_std_p.array)),
-                np.ma.getmaskarray(sat_p.array))
-        else:
-            sat = alt2sat(alt_std)
-            tas = dp2tas(dp, alt_std, sat)
-            combined_mask= np.logical_or(cas_p.array.mask,alt_std_p.array.mask)
-
-        tas_from_airspeed = np.ma.masked_less(
-            np.ma.array(data=tas, mask=combined_mask), 50)
-        tas_valids = np.ma.clump_unmasked(tas_from_airspeed)
-
-        scale = ut.convert(GRAVITY_IMPERIAL, ut.FPS, ut.KT)
-
-        if toffs:
-            # Now see if we can extend this during the takeoff phase, using
-            # either recorded groundspeed or failing that integrating
-            # acceleration:
-            for toff in toffs:
-                for tas_valid in tas_valids:
-                    tix = tas_valid.start
-                    if is_index_within_slice(tix, toff.slice):
-                        tas_0 = tas_from_airspeed[tix]
-                        scope = slice(toff.slice.start, tix)
-                        if gspd:
-                            wind = tas_0 - gspd.array[tix]
-                            tas_from_airspeed[scope] = gspd.array[scope] + wind
-                        elif acc_fwd:
-                            tas_from_airspeed[scope] = \
-                                integrate(acc_fwd.array[scope],
-                                          acc_fwd.frequency,
-                                          initial_value=tas_0,
-                                          scale=scale,
-                                          extend=True,
-                                          direction='backwards')
-
-        if lands:
-            # Then see if we can do the same for the landing phase:
-            for land in lands:
-                for tas_valid in tas_valids:
-                    tix = tas_valid.stop - 1
-                    if is_index_within_slice(tix, land.slice):
-                        tas_0 = tas_from_airspeed[tix]
-                        scope = slice(tix + 1, land.slice.stop)
-                        if gspd:
-                            wind = tas_0 - gspd.array[tix]
-                            tas_from_airspeed[scope] = gspd.array[scope] + wind
-                        elif acc_fwd:
-                            tas_from_airspeed[scope] = \
-                                integrate(acc_fwd.array[scope],
-                                          acc_fwd.frequency,
-                                          initial_value=tas_0,
-                                          extend=True,
-                                          scale=scale)
-
-        if rtos and acc_fwd:
-            for rto in rtos:
-                for tas_valid in tas_valids:
-                    tix = tas_valid.start
-                    if is_index_within_slice(tix, rto.slice):
-                        tas_0 = tas_from_airspeed[tix]
-                        scope = slice(rto.slice.start, tix)
-                        tas_from_airspeed[scope] = \
-                            integrate(acc_fwd.array[scope],
-                                      acc_fwd.frequency,
-                                      initial_value=tas_0,
-                                      scale=scale,
-                                      extend=True,
-                                      direction='backwards')
-                    tix = tas_valid.stop - 1
-                    if is_index_within_slice(tix, rto.slice):
-                        tas_0 = tas_from_airspeed[tix]
-                        scope = slice(tix + 1, rto.slice.stop)
-                        tas_from_airspeed[scope] = \
-                            integrate(acc_fwd.array[scope],
-                                      acc_fwd.frequency,
-                                      initial_value=tas_0,
-                                      extend=True,
-                                      scale=scale)
-
-        self.array = tas_from_airspeed
-
 
 class AltitudeAAL(DerivedParameterNode):
     '''
@@ -464,11 +171,8 @@ class AltitudeAAL(DerivedParameterNode):
     units = ut.FT
 
     @classmethod
-    def can_operate(cls, available, ac_type=A('Aircraft Type')):
+    def can_operate(cls, available):
         required = all_of(('Fast', 'Altitude STD Smoothed'), available)
-        if ac_type == helicopter:
-            if not 'Altitude Radio Offset Removed' in available:
-                return required and ('Gear On Ground' in available)
         return required
 
     def find_liftoff_start(self, alt_std):
@@ -649,12 +353,11 @@ class AltitudeAAL(DerivedParameterNode):
 
         return alt_result
 
-    def derive(self, alt_rad=P('Altitude Radio Offset Removed'),
+    def derive(self, alt_rad=P('Altitude Radio'),
                alt_std=P('Altitude STD Smoothed'),
                speedies=S('Fast'),
                pitch=P('Pitch'),
-               gog=P('Gear On Ground'),
-               ac_type=A('Aircraft Type')):
+               gog=P('Gear On Ground')):
         # Altitude Radio taken as the prime reference to ensure the minimum
         # ground clearance passing peaks is accurately reflected. Alt AAL
         # forced to 2htz
@@ -783,13 +486,6 @@ class AltitudeAAL(DerivedParameterNode):
                             prev_dip['alt_std'] = \
                                 min(prev_dip['alt_std'],
                                     next_alt)
-                        elif ac_type == helicopter and gog and any(gog.array[down_up] == 'Ground'):
-                            dips.append({
-                                'type': 'over_gnd',
-                                'slice': down_up,
-                                'alt_std': next_alt,
-                                'highest_ground':  next_alt,
-                            })
                         else:
                             dips.append({
                                 'type': 'high',
@@ -885,16 +581,6 @@ class AltitudeAAL(DerivedParameterNode):
                 if alt_idxs[-1]+1 != quick.stop and np.ma.count(alt_std.array[alt_idxs[-1]+1:quick.stop]) > (quick.stop - alt_idxs[-1]+1)/2:
                     alt_aal[alt_idxs[-1]+1:quick.stop] = 0.0
 
-        '''
-        # Quick visual check of the altitude aal.
-            import matplotlib.pyplot as plt
-            plt.plot(alt_aal, 'b-')
-            plt.plot(alt_std.array, 'y-')
-        if alt_rad:
-            plt.plot(alt_rad.array, 'r-')
-        plt.show()
-        '''
-
         self.array = alt_aal
 
 
@@ -959,137 +645,6 @@ class AltitudeAALForFlightPhases(DerivedParameterNode):
         self.array = np.ma.maximum(repair_mask(alt_aal.array, repair_duration=None),
                                    0.0)
 
-
-class AltitudeRadio(DerivedParameterNode):
-    '''
-    There is a wide variety of radio altimeter installations with one, two or
-    three sensors recorded - each with different timing, sample rate and
-    inaccuracies to be compensated. Each will have been independently validated
-    and so samples, or groups of sample, from each may be masked where they are
-    identified as invalid.
-
-    This derive process gathers all the available data and passes the blending
-    task to blend_parameters where multiple cubic splines are joined,
-    with variable weighting to provide an optimal combination of the available data.
-    '''
-
-    """
-    :returns Altitude Radio with values typically taken as the mean between
-    two valid sensors.
-    :type parameter object.
-    """
-
-    align = False
-    units = ut.FT
-
-    @classmethod
-    def can_operate(cls, available):
-        alt_rads = [n for n in cls.get_dependency_names() if n.startswith('Altitude Radio')]
-        return 'Fast' in available and any_of(alt_rads, available)
-
-    def derive(self,
-               source_A=P('Altitude Radio (A)'),
-               source_B=P('Altitude Radio (B)'),
-               source_C=P('Altitude Radio (C)'),
-               source_L=P('Altitude Radio (L)'),
-               source_R=P('Altitude Radio (R)'),
-               source_efis=P('Altitude Radio (EFIS)'),
-               source_efis_L=P('Altitude Radio (EFIS) (L)'),
-               source_efis_R=P('Altitude Radio (EFIS) (R)'),
-               alt_std=P('Altitude STD'),
-               pitch=P('Pitch'),
-               fast=S('Fast'),
-               family=A('Family')):
-
-        # Reminder: If you add parameters here, they need limits adding in the
-        # database !!!
-
-        sources = [source_A, source_B, source_C, source_L, source_R,
-                   source_efis, source_efis_L, source_efis_R]
-
-        self.offset = 0.0
-        self.frequency = 4.0
-
-        osources = []
-        for source in sources:
-            if source is None:
-                continue
-            # correct for overflow, aligning the fast slice to each source
-            aligned_fast = fast.get_aligned(source)
-
-            source.array = overflow_correction(source.array,
-                                               align(alt_std, source),
-                                               fast=aligned_fast,
-                                               hz=source.frequency)
-
-            # Some data frames reference altimeters which are optionally
-            # recorded. It is impractical to maintain the LFL patching
-            # required, so we only manage altimeters with a significant
-            # signal.
-            if np.ma.ptp(source.array) > 10.0:
-                osources.append(source)
-
-        if osources:
-            # Blend parameters was written around the Boeing 737NG frames where three sources
-            # are available with different sample rates and latency. Some airbus aircraft
-            # have three altimeters but one of the sensors can give signals that appear to be
-            # valid in the cruise, hence the alternative validity level. Finally, the overflow
-            # correction algorithms can be out of step, giving differences of the order of
-            # 1,000ft between two sensors. The tolerance threshold ensures these are rejected
-            # (a wide tolerance ensures we don't react to normal levels of noise between altimeters).
-            self.array = blend_parameters(osources, offset=self.offset, frequency=self.frequency, small_slice_duration=10,
-                                          mode='cubic', validity='all_but_one', tolerance=500.0)
-
-            self.array = np.ma.masked_greater(self.array, ALTITUDE_RADIO_MAX_RANGE)
-
-            # For aircraft where the antennae are placed well away from the main
-            # gear, and especially where it is aft of the main gear, compensation
-            # is necessary.
-
-            #TODO: Implement this type of correction on other types and embed
-            #coefficients in a database table.
-        else:
-            samples = int(len(alt_std.array) * self.frequency / alt_std.frequency)
-            self.array=np_ma_masked_zeros(samples)
-
-        if family and family.value in ['CL-600'] and pitch:
-            assert pitch.frequency == 4.0
-            # There is no alignment process for this small correction term,
-            # but it relies upon pitch being sampled at 4Hz and the blended
-            # radio altimeter signal also being fixed at 4Hz.
-
-            # These figures are derived from analysis of 14 sectors of
-            # different CRJ 900 aircraft. They are equivalent to the antennae
-            # being 21ft aft of the main wheels, which is a little more than
-            # the 16ft indicated by the operator.
-
-            scaling = 0.365 #ft/deg, +ve for altimeters aft of the main wheels.
-            offset = -1.5 #ft at pitch=0
-            self.array = self.array + (scaling * pitch.array) + offset
-
-
-class AltitudeRadioOffsetRemoved(DerivedParameterNode):
-    """
-    Remove the offset form Altitude Radio parameters so that it averages 0ft on
-    the ground.
-    """
-    units = ut.FT
-
-    def derive(self, alt_rad=P('Altitude Radio'), fasts=S('Fast')):
-        self.array = alt_rad.array
-        smoothed = np.ma.copy(alt_rad.array)
-        smoothed = np.ma.array(medfilt(smoothed, 21), mask=alt_rad.array.mask)
-        smoothed = np.ma.masked_greater(smoothed, 20)
-        smoothed = mask_outside_slices(smoothed, fasts.get_slices())
-        if not np.ma.count(smoothed):
-            return
-        #offset = mode(smoothed.compressed())[0][0] # TODO: is there a nicer way to index???
-        offset = np.ma.median(smoothed)
-        if 0 < offset < ALTITUDE_RADIO_OFFSET_LIMIT:
-            self.array = alt_rad.array - offset
-
-
-
 class AltitudeSTDSmoothed(DerivedParameterNode):
     """
     This applies various smoothing functions depending upon the quality of the source data, then
@@ -1114,52 +669,10 @@ class AltitudeSTDSmoothed(DerivedParameterNode):
     def can_operate(cls, available):
 
         return ('Frame' in available and
-                (('Altitude STD' in available) or
-                 all_of(('Altitude STD (Capt)', 'Altitude STD (FO)'), available)))
+                ('Altitude STD' in available))
 
-    def derive(self, fine=P('Altitude STD (Fine)'),
-               alt=P('Altitude STD'),
-               alt_capt=P('Altitude STD (Capt)'),
-               alt_fo=P('Altitude STD (FO)'),
-               frame=A('Frame')):
-
-        frame_name = frame.value if frame else ''
-
-        if frame_name in ['737-i', '757-DHL', '767-3A', 'L382-Hercules', '1900D-SS542A'] or \
-           frame_name.startswith('737-6'):
-            # The altitude signal is measured in steps of 32 ft so needs
-            # smoothing. A 5-point Gaussian distribution was selected as a
-            # balance between smoothing effectiveness and excessive
-            # manipulation of the data.
-            gauss = [0.054488683, 0.244201343, 0.402619948, 0.244201343, 0.054488683]
-            self.array = moving_average(alt.array, window=5, weightings=gauss)
-            return
-
-        elif frame_name in ['E135-145']:
-            # Here two sources are sampled alternately, so this form of
-            # weighting merges the two to create a smoothed average.
-            self.array = moving_average(alt.array, window=3,
-                                        weightings=[0.25,0.5,0.25])
-            return
-
-        elif frame_name.startswith('747-200-') or \
-             frame_name in ['A300-203-B4']:
-            # The fine recording is used to compute altitude, and here we
-            # match the fine part to the coarse part to get the altitudes
-            # right.
-            altitude = align(alt, fine)
-            self.array = match_altitudes(straighten_altitudes(fine.array, None,5000),
-                                         altitude)
-
-        elif alt_capt and alt_fo:
-            # Merge alternate sources if they are available from the LFL
-            # Note: The LFL will still need a separate "Altitude STD" parameter
-            # to allow the data validation processes to establish flight phases.
-            self.array, self.frequency, self.offset = blend_two_parameters(alt_capt, alt_fo)
-
-        else:
-            self.array = alt.array
-
+    def derive(self, alt=P('Altitude STD')):
+        self.array = alt.array
         # Applying moving_window of a moving_window to avoid a large weighting/
         # window size which would skew sharp curves.
         self.array = moving_average(moving_average(self.array))
@@ -1175,383 +688,63 @@ class BaroCorrection(DerivedParameterNode):
 
     @classmethod
     def can_operate(cls, available):
-        baro_corr = all_of(('Baro Correction (Capt)', 'Baro Correction (FO)'), available)
-        alt_baro_first = all_of(('Altitude STD', 'Altitude Baro (1)'), available)
-        alt_baro_solo = all_of(('Altitude STD', 'Altitude Baro'), available)
-        return baro_corr or alt_baro_first or alt_baro_solo
+        return all_of(('Altitude STD', 'Altitude Baro'), available)
 
     def derive(self,
-               baro_cpt=P('Baro Correction (Capt)'),
-               baro_fo=P('Baro Correction (FO)'),
-               alt_baro=P('Altitude Baro (1)'),
-               alt_baro_solo=P('Altitude Baro'),
+               alt_baro=P('Altitude Baro'),
                alt_std=P('Altitude STD')):
 
-        alt_baro = alt_baro_solo or alt_baro
-
-        if baro_cpt and baro_fo:
-            self.array, self.frequency, self.offset = \
-                blend_two_parameters(baro_cpt, baro_fo)
-        else:
             baro = alt2press(alt_std.array - alt_baro.array)
-            # Some Altitude Baro have poor precision (16 ft)
-            # Remove noise by using hysteresis and round result
-            self.array = np.ma.round(hysteresis(baro, 1))
+            self.array = baro.array
 
+# TODO: This would be cool to have, but maybe at a later stage
+# class AltitudeTail(DerivedParameterNode):
+#     """
+#     This derived parameter computes the height of the tail above the runway,
+#     as a measure of the likelyhood of a tailscrape.
 
-class AltitudeQNH(DerivedParameterNode):
-    '''
-    This computes the displayed pressure altitude for aircraft where the datum pressure
-    setting ("Baro Correction") has been recorded.
-    '''
+#     We are only interested in the takeoff, go-around and landing phases,
+#     where the tail may be close to scraping the runway. For this reason, we
+#     don't use pressure altitmetry as this suffers too badly from pressure
+#     variations at the point of liftoff and touchdown.
 
-    name = 'Altitude QNH'
-    units = ut.FT
+#     The parameter dist_gear_to_tail is measured in metres and is the
+#     horizontal distance aft from the main gear to the point on the tail most
+#     likely to scrape the runway.
 
-    @classmethod
-    def can_operate(cls, available):
-        baro = any_of(('Baro Correction (Capt)', 'Baro Correction (FO)',
-                       'Baro Correction'), available)
-        return baro and 'Altitude STD' in available
+#     Parameter ground_to_tail is the height of the point most likely to
+#     scrape. Ideally this is computed from the manufacturer-provided
+#     tailscrape attitude at the point of liftoff:
 
-    def derive(self,
-               alt_std=P('Altitude STD'),
-               baro_capt=P('Baro Correction (Capt)'),
-               baro_fo=P('Baro Correction (FO)'),
-               baro=P('Baro Correction')):
+#     ground_to_tail = dist_gear_to_tail*tan(tailscrape attitude at liftoff)
+#     """
 
-        baro_param = [p for p in [baro, baro_capt, baro_fo] if p and np.ma.count(p.array)]
+#     units = ut.FT
 
-        if baro_param and len(baro_param) > 0:
-            baro_correction = baro_param[0]
-            baro_fixed = nearest_neighbour_mask_repair(baro_correction.array)
+#     def derive(self, alt_rad=P('Altitude Radio'), pitch=P('Pitch'),
+#                toffs=S('Takeoff'), gas=S('Go Around And Climbout'),
+#                lands=S('Landing'),
+#                ground_to_tail=A('Ground To Lowest Point Of Tail'),
+#                dist_gear_to_tail=A('Main Gear To Lowest Point Of Tail')):
 
-            alt_qnh = np_ma_masked_zeros_like(alt_std.array)
+#         # Collect the periods we are interested in:
+#         phases=slices_or([t.slice for t in toffs],
+#                          [g.slice for g in gas],
+#                          [l.slice for l in lands],
+#                          )
 
-            for value_mb, slices in slices_of_runs(baro_fixed):
-                value_ft = mb2ft(value_mb)
-                for s in slices:
-                    alt_qnh[s] = alt_std.array[s] - value_ft
+#         # Scale the aircraft geometry into feet to match aircraft altimetry.
+#         gear2tail = ut.convert(dist_gear_to_tail.value, ut.METER, ut.FT)
+#         ground2tail = ut.convert(ground_to_tail.value, ut.METER, ut.FT)
 
-            self.array = np.ma.array(data=alt_qnh, mask=alt_std.array.mask)
-        else:
-            baro_correction = baro or baro_capt or baro_fo
-            self.array = np.ma.array(data=baro_correction.array.data, mask=True)
-
-
-# TODO: Account for 'Touch & Go' - need to adjust QNH for additional airfields!
-class AltitudeVisualizationWithGroundOffset(DerivedParameterNode):
-    '''
-    This altitude is above mean sea level. From the takeoff airfield to the
-    highest altitude above airfield, the altitude Visualization is referenced
-    to the takeoff airfield elevation, and from that point onwards it is
-    referenced to the landing airfield elevation.
-
-    If we can only determine the takeoff elevation, the landing elevation
-    will using the same value as the error will be the difference in pressure
-    altitude between the takeoff and landing airports on the day which is
-    likely to be less than forcing it to 0. Therefore landing elevation is
-    used if the takeoff elevation cannot be determined.
-
-    If we are unable to determine either the takeoff or landing elevations,
-    we use the Altitude AAL parameter.
-    '''
-
-    units = ut.FT
-
-    @classmethod
-    def can_operate(cls, available):
-        return 'Altitude AAL' in available
-
-    @classmethod
-    def _qnh_adjust(cls, aal, std, elev, mode):
-        if mode == 'climb':
-            datum = CLIMB_THRESHOLD
-        elif mode == 'descent':
-            datum = LANDING_THRESHOLD_HEIGHT
-        else:
-            raise ValueError('Unrecognised mode in %s._qnh_adjust()'
-                             % cls.__name__)
-
-        press_offset = std[0] - elev - datum
-        if abs(press_offset) > 4000.0:
-            raise ValueError(
-                'Excessive difference between pressure altitude '
-                '(%.1f) and airport elevation (%.1f) of %.1f '
-                'implies incorrect altimeter scaling.' %
-                (std[0], elev, press_offset)
-            )
-        return np.linspace(elev, std[-1] - aal[-1], num=len(aal))
-
-    def derive(self,
-               alt_aal=P('Altitude AAL'),
-               alt_std=P('Altitude STD Smoothed'),
-               l_apt=A('FDR Landing Airport'),
-               t_apt=A('FDR Takeoff Airport'),
-               climbs=S('Climb'),
-               descends=S('Descent')):
-
-        # Attempt to determine elevations at takeoff and landing:
-        t_elev = t_apt.value.get('elevation') if t_apt else None
-        l_elev = l_apt.value.get('elevation') if l_apt else None
-
-        if t_elev is None or l_elev is None:
-            self.warning('No takeoff or landing elevation, using Altitude AAL.')
-            self.array = np.ma.copy(alt_aal.array)
-            return
-        elif t_elev is None and l_elev is not None:
-            self.warning('No takeoff elevation, using %d ft from landing airport.', l_elev)
-            t_elev = l_elev
-        elif l_elev is None and t_elev is not None:
-            self.warning("No landing elevation, using %d ft from takeoff airport.", t_elev)
-            l_elev = t_elev
-        else:
-            pass
-
-        # We adjust the height during the climb and descent so that the cruise is at pressure altitudes.
-
-        # TODO: Improvement would be to adjust to half the difference if the cruise is below 10,000ft
-
-        alt_qnh = np_ma_masked_zeros_like(alt_aal.array)
-
-        if climbs:
-            # Climb phase adjustment
-            t_elev = t_elev or 0
-            first_climb = slice(climbs[0].slice.start, climbs[0].slice.stop + 1)
-            adjust_up = self._qnh_adjust(alt_aal.array[first_climb],
-                                         alt_std.array[first_climb],
-                                         t_elev, 'climb')
-            # Before first climb
-            alt_qnh[:first_climb.start] = alt_aal.array[:first_climb.start] + t_elev
-
-            # First climb adjusted
-            alt_qnh[first_climb] = alt_aal.array[first_climb] + adjust_up
-
-        if descends:
-            # Descent phase adjustment
-            l_elev = l_elev or 0
-            last_descent = slice(descends[-1].slice.stop + 1, descends[-1].slice.start, -1)
-            adjust_down = self._qnh_adjust(alt_aal.array[last_descent],
-                                           alt_std.array[last_descent],
-                                           l_elev, 'descent')
-            # Last descent adjusted
-            alt_qnh[last_descent] = alt_aal.array[last_descent] + adjust_down
-
-            # After last descent
-            alt_qnh[last_descent.start:] = alt_aal.array[last_descent.start:] + l_elev
-
-        # Use pressure altitude in the cruise
-        cruise_start = first_climb.stop if climbs else 0
-        cruise_stop = last_descent.stop + 1 if descends else len(alt_std.array)
-        alt_qnh[cruise_start:cruise_stop] = alt_std.array[cruise_start:cruise_stop]
-
-        self.array = np.ma.array(data=alt_qnh, mask=alt_aal.array.mask)
-
-class AltitudeVisualizationWithoutGroundOffset(DerivedParameterNode):
-    '''
-    Excludes the jump in Altitude AAL by blending with Altitude STD in the Cruises.
-    Helicopters use Altitude AGL instead of Altitude AAL.
-    '''
-    name = 'Altitude Visualization Without Ground Offset'
-    units = ut.FT
-
-    @classmethod
-    def can_operate(cls, available, ac_type=A('Aircraft Type')):
-        return 'Altitude STD Smoothed' in available \
-               and (('Altitude AGL' in available and ac_type == helicopter) \
-               or ('Altitude AAL' in available and ac_type != helicopter))
-
-    def derive(self,
-               alt_agl=P('Altitude AGL'),
-               alt_aal=P('Altitude AAL'),
-               alt_std=P('Altitude STD Smoothed'),
-               cruises=S('Cruise')):
-
-        try:
-            if alt_agl.array.any(): alt_aal = alt_agl
-        except AttributeError:
-            pass
-
-        alt_qnh = np_ma_masked_zeros_like(alt_aal.array)
-
-        first_iter = True
-
-        while True:
-            if cruises:
-                start_idx = cruises[-1].slice.start
-                stop_idx = cruises.pop().slice.stop - 1
-
-                if cruises:
-                    previous_stop_idx = cruises[-1].slice.stop - 1
-            else:
-                max_alt_std = max_value(alt_std.array)
-                start_idx = max_alt_std.index
-                stop_idx = max_alt_std.index
-
-            start_offset = alt_std.array[start_idx] - alt_aal.array[start_idx]
-            stop_offset = alt_std.array[stop_idx] - alt_aal.array[stop_idx]
-
-            if cruises and len(cruises) >= 1:
-                alt_qnh[previous_stop_idx:start_idx] = alt_aal.array[previous_stop_idx:start_idx]
-            else:
-                alt_qnh[:start_idx] = alt_aal.array[:start_idx]
-
-            if first_iter:
-                alt_qnh[stop_idx:] = alt_aal.array[stop_idx:]
-
-            alt_qnh[start_idx:stop_idx] = alt_std.array[start_idx:stop_idx] - np.linspace(start_offset, stop_offset, stop_idx - start_idx)
-
-            first_iter = False
-            if not cruises: break
-
-        self.array = alt_qnh
-
-
-'''
-class AltitudeSTD(DerivedParameterNode):
-    """
-    This section allows for manipulation of the altitude recordings from
-    different types of aircraft. Problems often arise due to combination of
-    the fine and coarse parts of the data and many different types of
-    correction have been developed to cater for these cases.
-    """
-    name = 'Altitude STD'
-    units = ut.FT
-    @classmethod
-    def can_operate(cls, available):
-        high_and_low = 'Altitude STD (Coarse)' in available and \
-            'Altitude STD (Fine)' in available
-        coarse_and_ivv = 'Altitude STD (Coarse)' in available and \
-            'Vertical Speed' in available
-        return high_and_low or coarse_and_ivv
-
-    def _high_and_low(self, alt_std_high, alt_std_low, top=18000, bottom=17000):
-        # Create empty array to write to.
-        alt_std = np.ma.empty(len(alt_std_high.array))
-        alt_std.mask = np.ma.mask_or(alt_std_high.array.mask,
-                                     alt_std_low.array.mask)
-        difference = top - bottom
-        # Create average of high and low. Where average is above crossover,
-        # source value from alt_std_high. Where average is below crossover,
-        # source value from alt_std_low.
-        average = (alt_std_high.array + alt_std_low.array) / 2
-        source_from_high = average > top
-        alt_std[source_from_high] = alt_std_high.array[source_from_high]
-        source_from_low = average < bottom
-        alt_std[source_from_low] = alt_std_low.array[source_from_low]
-        source_from_high_or_low = np.ma.logical_or(source_from_high,
-                                                   source_from_low)
-        crossover = np.ma.logical_not(source_from_high_or_low)
-        crossover_indices = np.ma.where(crossover)[0]
-        high_values = alt_std_high.array[crossover]
-        low_values = alt_std_low.array[crossover]
-        for index, high_value, low_value in zip(crossover_indices,
-                                                high_values,
-                                                low_values):
-            average_value = average[index]
-            high_multiplier = (average_value - bottom) / float(difference)
-            low_multiplier = abs(1 - high_multiplier)
-            crossover_value = (high_value * high_multiplier) + \
-                (low_value * low_multiplier)
-            alt_std[index] = crossover_value
-        return alt_std
-
-    def _coarse_and_ivv(self, alt_std_coarse, ivv):
-        alt_std_with_lag = first_order_lag(alt_std_coarse.array, 10,
-                                           alt_std_coarse.hz)
-        mask = np.ma.mask_or(alt_std_with_lag.mask, ivv.array.mask)
-        return np.ma.masked_array(alt_std_with_lag + (ivv.array / 60.0),
-                                  mask=mask)
-
-    def derive(self, alt_std_coarse=P('Altitude STD (Coarse)'),
-               alt_std_fine=P('Altitude STD (Fine)'),
-               ivv=P('Vertical Speed')):
-        if alt_std_high and alt_std_low:
-            self.array = self._high_and_low(alt_std_coarse, alt_std_fine)
-            ##crossover = np.ma.logical_and(average > 17000, average < 18000)
-            ##crossover_indices = np.ma.where(crossover)
-            ##for crossover_index in crossover_indices:
-
-            ##top = 18000
-            ##bottom = 17000
-            ##av = (alt_std_high + alt_std_low) / 2
-            ##ratio = (top - av) / (top - bottom)
-            ##if ratio > 1.0:
-                ##ratio = 1.0
-            ##elif ratio < 0.0:
-                ##ratio = 0.0
-            ##alt = alt_std_low * ratio + alt_std_high * (1.0 - ratio)
-            ##alt_std  = alt_std * 0.8 + alt * 0.2
-
-            #146-300 945003 (01)
-            #-------------------
-            ##Set the thresholds for changeover from low to high scales.
-            #top = 18000
-            #bottom = 17000
-            #
-            #av = (ALT_STD_HIGH + ALT_STD_LOW) /2
-            #ratio = (top - av) / (top - bottom)
-            #
-            #IF (ratio > 1.0) THEN ratio = 1.0 ENDIF
-            #IF (ratio < 0.0) THEN ratio = 0.0 ENDIF
-            #
-            #alt = ALT_STD_LOW * ratio + ALT_STD_HIGH * (1.0 - ratio)
-            #
-            ## Smoothing to reduce unsightly noise in the signal. DJ
-            #ALT_STDC = ALT_STDC * 0.8 + alt * 0.2
-        elif alt_std_coarse and ivv:
-            self.array = self._coarse_and_ivv(alt_std_coarse, ivv)
-            #ALT_logical_orSTDC = (last_alt_std * 0.9) + (ALT_STD * 0.1) + (IVVR / 60.0)
-            '''
-
-
-class AltitudeTail(DerivedParameterNode):
-    """
-    This derived parameter computes the height of the tail above the runway,
-    as a measure of the likelyhood of a tailscrape.
-
-    We are only interested in the takeoff, go-around and landing phases,
-    where the tail may be close to scraping the runway. For this reason, we
-    don't use pressure altitmetry as this suffers too badly from pressure
-    variations at the point of liftoff and touchdown.
-
-    The parameter dist_gear_to_tail is measured in metres and is the
-    horizontal distance aft from the main gear to the point on the tail most
-    likely to scrape the runway.
-
-    Parameter ground_to_tail is the height of the point most likely to
-    scrape. Ideally this is computed from the manufacturer-provided
-    tailscrape attitude at the point of liftoff:
-
-    ground_to_tail = dist_gear_to_tail*tan(tailscrape attitude at liftoff)
-    """
-
-    units = ut.FT
-
-    def derive(self, alt_rad=P('Altitude Radio'), pitch=P('Pitch'),
-               toffs=S('Takeoff'), gas=S('Go Around And Climbout'),
-               lands=S('Landing'),
-               ground_to_tail=A('Ground To Lowest Point Of Tail'),
-               dist_gear_to_tail=A('Main Gear To Lowest Point Of Tail')):
-
-        # Collect the periods we are interested in:
-        phases=slices_or([t.slice for t in toffs],
-                         [g.slice for g in gas],
-                         [l.slice for l in lands],
-                         )
-
-        # Scale the aircraft geometry into feet to match aircraft altimetry.
-        gear2tail = ut.convert(dist_gear_to_tail.value, ut.METER, ut.FT)
-        ground2tail = ut.convert(ground_to_tail.value, ut.METER, ut.FT)
-
-        result = np_ma_masked_zeros_like(alt_rad.array)
-        # The tail clearance is the value with the aircraft settled on its
-        # wheels plus radio atimetry minus the pitch attitude change at that
-        # tail arm.
-        for phase in phases:
-            result[phase] = alt_rad.array[phase] + ground2tail - \
-                np.ma.tan(pitch.array[phase]*deg2rad) * gear2tail
-        self.array = result
+#         result = np_ma_masked_zeros_like(alt_rad.array)
+#         # The tail clearance is the value with the aircraft settled on its
+#         # wheels plus radio atimetry minus the pitch attitude change at that
+#         # tail arm.
+#         for phase in phases:
+#             result[phase] = alt_rad.array[phase] + ground2tail - \
+#                 np.ma.tan(pitch.array[phase]*deg2rad) * gear2tail
+#         self.array = result
 
 
 ##############################################################################
@@ -1628,208 +821,23 @@ class AOA(DerivedParameterNode):
     def can_operate(cls, available):
         return any_of(('AOA (L)', 'AOA (R)'), available)
 
-    def derive(self, aoa_l=P('AOA (L)'), aoa_r=P('AOA (R)'),
-               family=A('Family')):
+    def derive(self, aoa_l=P('AOA (L)'), aoa_r=P('AOA (R)')):
 
         if aoa_l and aoa_r:
+            # Convert the actual values as simconnect is ridiculous
+            aoa_l_converted = 180 - aoa_l.array
+            aoa_r_converted = 180 - aoa_r.array
             # Average angle of attack to compensate for sideslip.
-            self.array = (aoa_l.array + aoa_r.array) / 2
+            self.array = (aoa_l_converted + aoa_r_converted) / 2
         else:
             # only one available
             aoa = aoa_l or aoa_r
-            self.array = aoa.array
-
-        if family and family.value == 'CL-600':
-            # The Angle of Attack recorded in the FDR is "filtered" Body AoA
-            # and is not compensated for sideslip, it must be converted back to
-            # Vane before it can be used. See Bombardier AOM-1281 document.
-            self.array = self.array * 1.661 - 1.404
+            # Convert the actual values
+            aoa_converted = 180 - aoa.array
+            self.array = aoa_converted
 
 
-class ControlColumn(DerivedParameterNode):
-    '''
-    The position of the control column blended from the position of the captain
-    and first officer's control columns.
-    '''
-
-    align = False
-    units = ut.DEGREE  # FIXME: Or should this be ut.PERCENT?
-
-    def derive(self,
-               posn_capt=P('Control Column (Capt)'),
-               posn_fo=P('Control Column (FO)')):
-
-        self.array, self.frequency, self.offset = \
-            blend_two_parameters(posn_capt, posn_fo)
-
-
-class ControlColumnCapt(DerivedParameterNode):
-    '''
-    Special functions for the ATR series aircraft where potentiometer or
-    synchro transducers may be installed. This process selects the most
-    likely signal source.
-    '''
-
-    name = 'Control Column (Capt)'
-    units = ut.DEGREE  # FIXME: Or should this be ut.PERCENT?
-
-    @classmethod
-    def can_operate(cls, available):
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               pot=P('Control Column (Capt) Potentiometer'),
-               synchro=P('Control Column (Capt) Synchro')):
-
-        synchro_samples = 0
-        if synchro:
-            synchro_samples = np.ma.count(synchro.array)
-            self.array = synchro.array
-        if pot:
-            pot_samples = np.ma.count(pot.array)
-            if pot_samples > synchro_samples:
-                self.array = pot.array
-
-
-class ControlColumnFO(DerivedParameterNode):
-    '''
-    Special functions for the ATR series aircraft where potentiometer or
-    synchro transducers may be installed. This process selects the most
-    likely signal source.
-    '''
-
-    name = 'Control Column (FO)'
-    units = ut.DEGREE  # FIXME: Or should this be ut.PERCENT?
-
-    @classmethod
-    def can_operate(cls, available):
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               pot=P('Control Column (FO) Potentiometer'),
-               synchro=P('Control Column (FO) Synchro')):
-
-        synchro_samples = 0
-        if synchro:
-            synchro_samples = np.ma.count(synchro.array)
-            self.array = synchro.array
-        if pot:
-            pot_samples = np.ma.count(pot.array)
-            if pot_samples > synchro_samples:
-                self.array = pot.array
-
-
-class ControlColumnForce(DerivedParameterNode):
-    '''
-    The combined force from the captain and the first officer.
-    '''
-
-    units = ut.DECANEWTON
-
-    def derive(self,
-               force_capt=P('Control Column Force (Capt)'),
-               force_fo=P('Control Column Force (FO)')):
-
-        self.array = np.ma.vstack([force_capt.array, force_fo.array]).sum(axis=0)
-
-
-class ControlColumnForceAtControlWheelCapt(DerivedParameterNode):
-    '''
-    ATR-72 specific parameter
-    '''
-    units = ut.DECANEWTON
-    name = 'Control Column Force At Control Wheel (Capt)'
-
-    @classmethod
-    def can_operate(cls, available, family=A('Family')):
-        is_atr = family and family.value in ('ATR-72')
-        return all_of(('Control Column Force (Capt)', 'Control Column (Capt)'), available) and is_atr
-
-    def derive(self, cc_force=P('Control Column Force (Capt)'),
-                     cc_angle=P('Control Column (Capt)'),):
-        # This is a formula to calculate the force at the control wheel, provided by ATR, ref AE-2115.
-        self.array = (cc_force.array/816) * (0.0013 * np.ma.power(cc_angle.array, 3) - 0.0394 * np.ma.power(cc_angle.array, 2) - 0.1077 * cc_angle.array + 299.85)
-
-
-class ControlColumnForceAtControlWheelFO(DerivedParameterNode):
-    '''
-    ATR-72 specific parameter
-    '''
-    units = ut.DECANEWTON
-    name = 'Control Column Force At Control Wheel (FO)'
-
-    @classmethod
-    def can_operate(cls, available, family=A('Family')):
-        is_atr = family and family.value in ('ATR-72')
-        return all_of(('Control Column Force (FO)', 'Control Column (FO)'), available) and is_atr
-
-    def derive(self, cc_force=P('Control Column Force (FO)'),
-                     cc_angle=P('Control Column (FO)'),):
-        # This is a formula to calculate the force at the control wheel, provided by ATR, ref AE-2115.
-        self.array = (cc_force.array/816) * (0.0013 * np.ma.power(cc_angle.array, 3) - 0.0394 * np.ma.power(cc_angle.array, 2) - 0.1077 * cc_angle.array + 299.85)
-
-
-class ControlWheel(DerivedParameterNode):
-    '''
-    The position of the control wheel blended from the position of the captain
-    and first officer's control wheels.
-
-    On the ATR42 there is the option of potentiometer or synchro input.
-    '''
-
-    align = False
-    units = ut.DEGREE
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return all_of((
-            'Control Wheel (Capt)',
-            'Control Wheel (FO)',
-        ), available) or any_of((
-            'Control Wheel Synchro',
-            'Control Wheel Potentiometer',
-        ), available)
-
-    def derive(self,
-               posn_capt=P('Control Wheel (Capt)'),
-               posn_fo=P('Control Wheel (FO)'),
-               synchro=P('Control Wheel Synchro'),
-               pot=P('Control Wheel Potentiometer')):
-
-        # Usually we are blending two sensors
-        if posn_capt and posn_fo:
-            self.array, self.frequency, self.offset = \
-                blend_two_parameters(posn_capt, posn_fo)
-            return
-        # Less commonly we are selecting from a single source
-        synchro_samples = 0
-        if synchro:
-            synchro_samples = np.ma.count(synchro.array)
-            self.array = synchro.array
-        if pot:
-            pot_samples = np.ma.count(pot.array)
-            if pot_samples > synchro_samples:
-                self.array = pot.array
-
-
-class ControlWheelForce(DerivedParameterNode):
-    '''
-    The combined force from the captain and the first officer.
-    '''
-
-    units = ut.DECANEWTON
-
-    def derive(self,
-               force_capt=P('Control Wheel Force (Capt)'),
-               force_fo=P('Control Wheel Force (FO)')):
-
-        self.array = force_capt.array + force_fo.array
-        # TODO: Check this summation is correct in amplitude and phase.
-        # Compare with Boeing charts for the 737NG.
-
-
-class SidestickAngleCapt(DerivedParameterNode):
+class ControlInputAngle(DerivedParameterNode):
     '''
     Angle of the captain's side stick.
 
@@ -1843,43 +851,17 @@ class SidestickAngleCapt(DerivedParameterNode):
     - A321 Flight Profile Specification
     '''
 
-    name = 'Sidestick Angle (Capt)'
-    units = ut.DEGREE
+    name = 'Control Input Angle'
+    units = ut.PERCENT
 
     def derive(self,
-               pitch_capt=M('Sidestick Pitch (Capt)'),
-               roll_capt=M('Sidestick Roll (Capt)')):
+               pitch_capt=M('Control Input Pitch'),
+               roll_capt=M('Control Input Roll')):
 
         pitch_repaired = repair_mask(pitch_capt.array, pitch_capt.frequency)
         roll_repaired = repair_mask(roll_capt.array, roll_capt.frequency)
         self.array = np.ma.sqrt(pitch_repaired ** 2 + roll_repaired ** 2)
-
-
-class SidestickAngleFO(DerivedParameterNode):
-    '''
-    Angle of the first officer's side stick.
-
-    This parameter calcuates the combined angle from the separate pitch and
-    roll component angles of the sidestick for the first officer.
-
-    Reference was made to the following documentation to assist with the
-    development of this algorithm:
-
-    - A320 Flight Profile Specification
-    - A321 Flight Profile Specification
-    '''
-
-    name = 'Sidestick Angle (FO)'
-    units = ut.DEGREE
-
-    def derive(self,
-               pitch_fo=M('Sidestick Pitch (FO)'),
-               roll_fo=M('Sidestick Roll (FO)')):
-
-        pitch_repaired = repair_mask(pitch_fo.array, pitch_fo.frequency)
-        roll_repaired = repair_mask(roll_fo.array, roll_fo.frequency)
-        self.array = np.ma.sqrt(pitch_repaired ** 2 + roll_repaired ** 2)
-
+        
 
 class DistanceToLanding(DerivedParameterNode):
     '''
@@ -1942,277 +924,24 @@ class DistanceTravelled(DerivedParameterNode):
 
 class Drift(DerivedParameterNode):
     '''
+    Drift angle in degrees. Calculated using the difference between
+    Track and Heading.
     '''
-
     align = False
     units = ut.DEGREE
 
     @classmethod
     def can_operate(cls, available):
 
-        return any_of(('Drift (1)', 'Drift (2)'), available) \
-            or all_of(('Heading Continuous', 'Track'), available)
+        return all_of(('Heading Continuous', 'Track'), available)
 
     def derive(self,
-               drift_1=P('Drift (1)'),
-               drift_2=P('Drift (2)'),
                track=P('Track'),
                heading=P('Heading Continuous')):
 
-        if drift_1 or drift_2:
-            self.array, self.frequency, self.offset = \
-                blend_two_parameters(drift_1, drift_2)
-        else:
-            self.frequency = track.frequency
-            self.offset = track.offset
-            self.array = (track.array - align(heading, track) + 180) % 360 - 180
-
-
-##############################################################################
-# Brakes
-
-
-class BrakePressure(DerivedParameterNode):
-    '''
-    Gather the recorded brake parameters and convert into a single analogue.
-
-    This node allows for expansion for different types, and possibly
-    operation in primary and standby modes.
-    '''
-
-    align = False
-    units = ut.PSI
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return all_of((
-            'Brake (L) Press',
-            'Brake (R) Press',
-        ), available) or all_of((
-            'Brake (L) Inboard Press',
-            'Brake (L) Outboard Press',
-            'Brake (R) Inboard Press',
-            'Brake (R) Outboard Press',
-        ), available)
-
-    def derive(self,
-               brake_L=P('Brake (L) Press'),
-               brake_R=P('Brake (R) Press'),
-               brake_L_ib=P('Brake (L) Inboard Press'),
-               brake_L_ob=P('Brake (L) Outboard Press'),
-               brake_R_ib=P('Brake (R) Inboard Press'),
-               brake_R_ob=P('Brake (R) Outboard Press')):
-
-        if brake_L and brake_R:
-            self.array, self.frequency, self.offset = \
-                blend_two_parameters(brake_L, brake_R)
-        else:
-            sources = [brake_L_ib, brake_L_ob, brake_R_ib, brake_R_ob]
-            self.offset = 0.0
-            self.frequency = brake_L_ib.frequency * 4.0
-            self.array = blend_parameters(sources, offset=self.offset,
-                                          frequency=self.frequency)
-
-class Brake_C_Temp(DerivedParameterNode):
-    '''
-    This collates the centre gear temperature signals.
-
-    We use the median value to combine these so that in the
-    presence of a faulty signal the result is not skewed.
-    '''
-
-    name = 'Brake (C) Temp'
-    units = ut.CELSIUS
-
-    @classmethod
-    def can_operate(cls, available):
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               brake1=P('Brake (C) (1) Temp'),
-               brake2=P('Brake (C) (2) Temp'),
-               brake3=P('Brake (C) (3) Temp'),
-               brake4=P('Brake (C) (4) Temp'),
-               brake5=P('Brake (C) (5) Temp'),
-               brake6=P('Brake (C) (6) Temp'),
-               brake7=P('Brake (C) (7) Temp'),
-               brake8=P('Brake (C) (8) Temp')):
-
-        brake_params = (brake1, brake2, brake3, brake4, brake5, brake6, brake7, brake8)
-        brakes = vstack_params(*brake_params)
-        self.array = np.ma.median(brakes, axis=0)
-        self.offset = offset_select('mean', brake_params)
-
-class Brake_L_Temp(DerivedParameterNode):
-    '''
-    See Brake_C_Temp above
-    '''
-
-    name = 'Brake (L) Temp'
-    units = ut.CELSIUS
-
-    @classmethod
-    def can_operate(cls, available):
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               brake1=P('Brake (L) (1) Temp'),
-               brake2=P('Brake (L) (2) Temp'),
-               brake3=P('Brake (L) (3) Temp'),
-               brake4=P('Brake (L) (4) Temp'),
-               brake5=P('Brake (L) (5) Temp'),
-               brake6=P('Brake (L) (6) Temp')):
-
-        brake_params = (brake1, brake2, brake3, brake4, brake5, brake6)
-        brakes = vstack_params(*brake_params)
-        self.array = np.ma.median(brakes, axis=0)
-        self.offset = offset_select('mean', brake_params)
-
-class Brake_R_Temp(DerivedParameterNode):
-    '''
-    See Brake_C_Temp above
-    '''
-
-    name = 'Brake (R) Temp'
-    units = ut.CELSIUS
-
-    @classmethod
-    def can_operate(cls, available):
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               brake1=P('Brake (R) (1) Temp'),
-               brake2=P('Brake (R) (2) Temp'),
-               brake3=P('Brake (R) (3) Temp'),
-               brake4=P('Brake (R) (4) Temp'),
-               brake5=P('Brake (R) (5) Temp'),
-               brake6=P('Brake (R) (6) Temp')):
-
-        brake_params = (brake1, brake2, brake3, brake4, brake5, brake6)
-        brakes = vstack_params(*brake_params)
-        self.array = np.ma.median(brakes, axis=0)
-        self.offset = offset_select('mean', brake_params)
-
-
-class Brake_TempAvg(DerivedParameterNode):
-    '''
-    The Average recorded Brake Temperature across all Brake sources.
-
-    offset used is the mean of all parameters used
-    '''
-
-    name = 'Brake (*) Temp Avg'
-    align = False
-    units = ut.CELSIUS
-
-    @classmethod
-    def can_operate(cls, available):
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               brake1=P('Brake (1) Temp'),
-               brake2=P('Brake (2) Temp'),
-               brake3=P('Brake (3) Temp'),
-               brake4=P('Brake (4) Temp'),
-               brake5=P('Brake (5) Temp'),
-               brake6=P('Brake (6) Temp'),
-               brake7=P('Brake (7) Temp'),
-               brake8=P('Brake (8) Temp'),
-               brake9=P('Brake (9) Temp'),
-               brake10=P('Brake (10) Temp'),
-               brake11=P('Brake (11) Temp'),
-               brake12=P('Brake (12) Temp'),
-               brakeC=P('Brake (C) Temp'),
-               brakeL=P('Brake (L) Temp'),
-               brakeR=P('Brake (R) Temp')):
-
-        brake_params = (brake1, brake2, brake3, brake4, brake5, brake6, brake7, brake8,
-                        brake9, brake10, brake11, brake12, brakeC, brakeL, brakeR)
-        brakes = vstack_params(*brake_params)
-        self.array = np.ma.average(brakes, axis=0)
-        self.offset = offset_select('mean', brake_params)
-
-
-class Brake_TempMax(DerivedParameterNode):
-    '''
-    The Maximum recorded Brake Temperature across all Brake sources.
-
-    offset used is the mean of all parameters used
-    '''
-
-    name = 'Brake (*) Temp Max'
-    align = False
-    units = ut.CELSIUS
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               brake1=P('Brake (1) Temp'),
-               brake2=P('Brake (2) Temp'),
-               brake3=P('Brake (3) Temp'),
-               brake4=P('Brake (4) Temp'),
-               brake5=P('Brake (5) Temp'),
-               brake6=P('Brake (6) Temp'),
-               brake7=P('Brake (7) Temp'),
-               brake8=P('Brake (8) Temp'),
-               brake9=P('Brake (9) Temp'),
-               brake10=P('Brake (10) Temp'),
-               brake11=P('Brake (11) Temp'),
-               brake12=P('Brake (12) Temp'),
-               brakeC=P('Brake (C) Temp'),
-               brakeL=P('Brake (L) Temp'),
-               brakeR=P('Brake (R) Temp')):
-
-        brake_params = (brake1, brake2, brake3, brake4, brake5, brake6, brake7, brake8,
-                        brake9, brake10, brake11, brake12, brakeC, brakeL, brakeR)
-        brakes = vstack_params(*brake_params)
-        self.array = np.ma.max(brakes, axis=0)
-        self.offset = offset_select('mean', brake_params)
-
-
-class Brake_TempMin(DerivedParameterNode):
-    '''
-    The Minimum recorded Brake Temperature across all Brake sources.
-
-    offset used is the mean of all parameters used
-    '''
-
-    name = 'Brake (*) Temp Min'
-    align = False
-    units = ut.CELSIUS
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               brake1=P('Brake (1) Temp'),
-               brake2=P('Brake (2) Temp'),
-               brake3=P('Brake (3) Temp'),
-               brake4=P('Brake (4) Temp'),
-               brake5=P('Brake (5) Temp'),
-               brake6=P('Brake (6) Temp'),
-               brake7=P('Brake (7) Temp'),
-               brake8=P('Brake (8) Temp'),
-               brake9=P('Brake (9) Temp'),
-               brake10=P('Brake (10) Temp'),
-               brake11=P('Brake (11) Temp'),
-               brake12=P('Brake (12) Temp'),
-               brakeC=P('Brake (C) Temp'),
-               brakeL=P('Brake (L) Temp'),
-               brakeR=P('Brake (R) Temp')):
-
-        brake_params = (brake1, brake2, brake3, brake4, brake5, brake6, brake7, brake8,
-                        brake9, brake10, brake11, brake12, brakeC, brakeL, brakeR)
-        brakes = vstack_params(*brake_params)
-        self.array = np.ma.min(brakes, axis=0)
-        self.offset = offset_select('mean', brake_params)
-
+        self.frequency = track.frequency
+        self.offset = track.offset
+        self.array = (track.array - align(heading, track) + 180) % 360 - 180
 
 ##############################################################################
 # Engine EPR
@@ -2316,69 +1045,6 @@ class Eng_EPRAvgFor10Sec(DerivedParameterNode):
     def derive(self, eng_epr_avg=P('Eng (*) EPR Avg')):
         self.array = second_window(eng_epr_avg.array, self.frequency, 10)
 
-
-class EngTPRLimitDifference(DerivedParameterNode):
-    '''
-    '''
-
-    name = 'Eng TPR Limit Difference'
-    units = None
-
-    def derive(self,
-               eng_tpr_max=P('Eng (*) TPR Max'),
-               eng_tpr_limit=P('Eng TPR Limit Max')):
-
-        self.array = eng_tpr_max.array - eng_tpr_limit.array
-
-
-class Eng_TPRMax(DerivedParameterNode):
-    '''
-    '''
-
-    name = 'Eng (*) TPR Max'
-    align = False
-    units = None
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               eng1=P('Eng (1) TPR'),
-               eng2=P('Eng (2) TPR'),
-               eng3=P('Eng (3) TPR'),
-               eng4=P('Eng (4) TPR')):
-
-        engines = vstack_params(eng1, eng2, eng3, eng4)
-        self.array = np.ma.max(engines, axis=0)
-        self.offset = offset_select('mean', [eng1, eng2, eng3, eng4])
-
-
-class Eng_TPRMin(DerivedParameterNode):
-    '''
-    '''
-
-    name = 'Eng (*) TPR Min'
-    align = False
-    units = None
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               eng1=P('Eng (1) TPR'),
-               eng2=P('Eng (2) TPR'),
-               eng3=P('Eng (3) TPR'),
-               eng4=P('Eng (4) TPR')):
-
-        engines = vstack_params(eng1, eng2, eng3, eng4)
-        self.array = np.ma.min(engines, axis=0)
-        self.offset = offset_select('mean', [eng1, eng2, eng3, eng4])
-
-
 ##############################################################################
 # Engine Fuel Flow
 
@@ -2389,7 +1055,7 @@ class Eng_FuelFlow(DerivedParameterNode):
 
     name = 'Eng (*) Fuel Flow'
     align = False
-    units = ut.KG_H
+    units = ut.LBS_H
 
     @classmethod
     def can_operate(cls, available):
@@ -2631,6 +1297,68 @@ class Eng_GasTempMin(DerivedParameterNode):
 ##############################################################################
 # Engine N1
 
+# TODO: This parameter is stupid because simconnect records RPM and not % and it will be very hard to get reliable 100% rpm values for engines, but maybe one day?        
+class Eng1N1(DerivedParameterNode):
+    '''
+    This converts Eng (1) N1 RPM to a percentage by taking the max value and treating it as 100%, and min value as 0%
+    '''
+    
+    name = 'Eng (1) N1'
+    units = ut.PERCENT
+    
+    @classmethod
+    def can_operate(cls, available):
+        return super().can_operate(available) and ('Eng (1) N1 RPM' in available)
+    
+    def derive(self, n1=P('Eng (1) N1 RPM')):
+        self.array = (n1.array - np.min(n1.array)) / (np.max(n1.array) - np.min(n1.array)) * 100
+    
+class Eng2N1(DerivedParameterNode):
+    '''
+    This converts Eng (2) N1 RPM to a percentage by taking the max value and treating it as 100%, and min value as 0%
+    '''
+    
+    name = 'Eng (2) N1'
+    units = ut.PERCENT
+    
+    @classmethod
+    def can_operate(cls, available):
+        return super().can_operate(available) and ('Eng (2) N1 RPM' in available)
+    
+    def derive(self, n1=P('Eng (2) N1 RPM')):
+        self.array = (n1.array - np.min(n1.array)) / (np.max(n1.array) - np.min(n1.array)) * 100
+
+
+class Eng3N1(DerivedParameterNode):
+    '''
+    This converts Eng (3) N1 RPM to a percentage by taking the max value and treating it as 100%, and min value as 0%
+    '''
+    
+    name = 'Eng (3) N1'
+    units = ut.PERCENT
+    
+    @classmethod
+    def can_operate(cls, available):
+        return super().can_operate(available) and ('Eng (3) N1 RPM' in available)
+    
+    def derive(self, n1=P('Eng (3) N1 RPM')):
+        self.array = (n1.array - np.min(n1.array)) / (np.max(n1.array) - np.min(n1.array)) * 100
+
+
+class Eng4N1(DerivedParameterNode):
+    '''
+    This converts Eng (4) N1 RPM to a percentage by taking the max value and treating it as 100%, and min value as 0%
+    '''
+    
+    name = 'Eng (4) N1'
+    units = ut.PERCENT
+    
+    @classmethod
+    def can_operate(cls, available):
+        return super().can_operate(available) and ('Eng (4) N1 RPM' in available)
+    
+    def derive(self, n1=P('Eng (4) N1 RPM')):
+        self.array = (n1.array - np.min(n1.array)) / (np.max(n1.array) - np.min(n1.array)) * 100
 
 class Eng_N1Avg(DerivedParameterNode):
     '''
@@ -2651,14 +1379,14 @@ class Eng_N1Avg(DerivedParameterNode):
         return any_of(cls.get_dependency_names(), available)
 
     def derive(self,
-               eng1=P('Eng (1) N1'),
-               eng2=P('Eng (2) N1'),
-               eng3=P('Eng (3) N1'),
-               eng4=P('Eng (4) N1')):
+           eng1=P('Eng (1) N1'),
+           eng2=P('Eng (2) N1'),
+           eng3=P('Eng (3) N1'),
+           eng4=P('Eng (4) N1')):
 
         engines = vstack_params(eng1, eng2, eng3, eng4)
-        self.array = np.ma.average(engines, axis=0)
-
+        self.array = np.ma.min(engines, axis=0)
+        self.offset = offset_select('mean', [eng1, eng2, eng3, eng4])
 
 class Eng_N1AvgFor10Sec(DerivedParameterNode):
     '''
@@ -2772,7 +1500,69 @@ class Eng_N1MinFor5Sec(DerivedParameterNode):
 ##############################################################################
 # Engine N2
 
+class Eng1N2(DerivedParameterNode):
+    '''
+    This converts Eng (1) N2 RPM to a percentage by taking the max value and treating it as 100%, and min value as 0%
+    '''
+    
+    name = 'Eng (1) N2'
+    units = ut.PERCENT
+    
+    @classmethod
+    def can_operate(cls, available):
+        return super().can_operate(available) and ('Eng (1) N2 RPM' in available)
+    
+    def derive(self, n2=P('Eng (1) N2 RPM')):
+        self.array = (n2.array - np.min(n2.array)) / (np.max(n2.array) - np.min(n2.array)) * 100
 
+
+class Eng2N2(DerivedParameterNode):
+    '''
+    This converts Eng (2) N2 RPM to a percentage by taking the max value and treating it as 100%, and min value as 0%
+    '''
+    
+    name = 'Eng (2) N2'
+    units = ut.PERCENT
+    
+    @classmethod
+    def can_operate(cls, available):
+        return super().can_operate(available) and ('Eng (2) N2 RPM' in available)
+    
+    def derive(self, n2=P('Eng (2) N2 RPM')):
+        self.array = (n2.array - np.min(n2.array)) / (np.max(n2.array) - np.min(n2.array)) * 100
+
+
+class Eng3N2(DerivedParameterNode):
+    '''
+    This converts Eng (3) N2 RPM to a percentage by taking the max value and treating it as 100%, and min value as 0%
+    '''
+    
+    name = 'Eng (3) N2'
+    units = ut.PERCENT
+    
+    @classmethod
+    def can_operate(cls, available):
+        return super().can_operate(available) and ('Eng (3) N2 RPM' in available)
+    
+    def derive(self, n2=P('Eng (3) N2 RPM')):
+        self.array = (n2.array - np.min(n2.array)) / (np.max(n2.array) - np.min(n2.array)) * 100
+
+
+class Eng4N2(DerivedParameterNode):
+    '''
+    This converts Eng (4) N2 RPM to a percentage by taking the max value and treating it as 100%, and min value as 0%
+    '''
+    
+    name = 'Eng (4) N2'
+    units = ut.PERCENT
+    
+    @classmethod
+    def can_operate(cls, available):
+        return super().can_operate(available) and ('Eng (4) N2 RPM' in available)
+    
+    def derive(self, n2=P('Eng (4) N2 RPM')):
+        self.array = (n2.array - np.min(n2.array)) / (np.max(n2.array) - np.min(n2.array)) * 100
+        
 class Eng_N2Avg(DerivedParameterNode):
     '''
     This returns the avaerage N2 in any sample period for up to four engines.
@@ -2855,183 +1645,7 @@ class Eng_N2Min(DerivedParameterNode):
 
         engines = vstack_params(eng1, eng2, eng3, eng4)
         self.array = np.ma.min(engines, axis=0)
-
-
-##############################################################################
-# Engine N3
-
-
-class Eng_N3Avg(DerivedParameterNode):
-    '''
-    This returns the average N3 in any sample period for up to four engines.
-
-    All engines data aligned (using interpolation) and forced the frequency to
-    be a higher 4Hz to protect against smoothing of peaks.
-    '''
-
-    name = 'Eng (*) N3 Avg'
-    align_frequency = 4
-    align_offset = 0
-    units = ut.PERCENT
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               eng1=P('Eng (1) N3'),
-               eng2=P('Eng (2) N3'),
-               eng3=P('Eng (3) N3'),
-               eng4=P('Eng (4) N3')):
-
-        engines = vstack_params(eng1, eng2, eng3, eng4)
-        self.array = np.ma.average(engines, axis=0)
-
-
-class Eng_N3Max(DerivedParameterNode):
-    '''
-    This returns the highest N3 in any sample period for up to four engines.
-
-    All engines data aligned (using interpolation) and forced the frequency to
-    be a higher 4Hz to protect against smoothing of peaks.
-    '''
-
-    name = 'Eng (*) N3 Max'
-    align_frequency = 4
-    align_offset = 0
-    units = ut.PERCENT
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               eng1=P('Eng (1) N3'),
-               eng2=P('Eng (2) N3'),
-               eng3=P('Eng (3) N3'),
-               eng4=P('Eng (4) N3')):
-
-        engines = vstack_params(eng1, eng2, eng3, eng4)
-        self.array = np.ma.max(engines, axis=0)
-
-
-class Eng_N3Min(DerivedParameterNode):
-    '''
-    This returns the lowest N3 in any sample period for up to four engines.
-
-    All engines data aligned (using interpolation) and forced the frequency to
-    be a higher 4Hz to protect against smoothing of peaks.
-    '''
-
-    name = 'Eng (*) N3 Min'
-    align_frequency = 4
-    align_offset = 0
-    units = ut.PERCENT
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               eng1=P('Eng (1) N3'),
-               eng2=P('Eng (2) N3'),
-               eng3=P('Eng (3) N3'),
-               eng4=P('Eng (4) N3')):
-
-        engines = vstack_params(eng1, eng2, eng3, eng4)
-        self.array = np.ma.min(engines, axis=0)
-
-
-##############################################################################
-# Engine Np
-
-
-class Eng_NpAvg(DerivedParameterNode):
-    '''
-    This returns the average Np in any sample period for up to four engines.
-
-    All engines data aligned (using interpolation) and forced the frequency to
-    be a higher 4Hz to protect against smoothing of peaks.
-    '''
-
-    name = 'Eng (*) Np Avg'
-    align_frequency = 4
-    align_offset = 0
-    units = ut.PERCENT
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               eng1=P('Eng (1) Np'),
-               eng2=P('Eng (2) Np'),
-               eng3=P('Eng (3) Np'),
-               eng4=P('Eng (4) Np')):
-
-        engines = vstack_params(eng1, eng2, eng3, eng4)
-        self.array = np.ma.average(engines, axis=0)
-
-
-class Eng_NpMax(DerivedParameterNode):
-    '''
-    This returns the highest Np in any sample period for up to four engines.
-
-    All engines data aligned (using interpolation) and forced the frequency to
-    be a higher 4Hz to protect against smoothing of peaks.
-    '''
-
-    name = 'Eng (*) Np Max'
-    align_frequency = 4
-    align_offset = 0
-    units = ut.PERCENT
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               eng1=P('Eng (1) Np'),
-               eng2=P('Eng (2) Np'),
-               eng3=P('Eng (3) Np'),
-               eng4=P('Eng (4) Np')):
-
-        engines = vstack_params(eng1, eng2, eng3, eng4)
-        self.array = np.ma.max(engines, axis=0)
-
-
-class Eng_NpMin(DerivedParameterNode):
-    '''
-    This returns the lowest Np in any sample period for up to four engines.
-
-    All engines data aligned (using interpolation) and forced the frequency to
-    be a higher 4Hz to protect against smoothing of peaks.
-    '''
-
-    name = 'Eng (*) Np Min'
-    align_frequency = 4
-    align_offset = 0
-    units = ut.PERCENT
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               eng1=P('Eng (1) Np'),
-               eng2=P('Eng (2) Np'),
-               eng3=P('Eng (3) Np'),
-               eng4=P('Eng (4) Np')):
-
-        engines = vstack_params(eng1, eng2, eng3, eng4)
-        self.array = np.ma.min(engines, axis=0)
-
+        
 
 ##############################################################################
 # Engine Oil Pressure
@@ -3119,7 +1733,7 @@ class Eng_OilQtyAvg(DerivedParameterNode):
 
     name = 'Eng (*) Oil Qty Avg'
     align = False
-    units = ut.QUART
+    units = ut.PERCENT
 
     @classmethod
     def can_operate(cls, available):
@@ -3143,7 +1757,7 @@ class Eng_OilQtyMax(DerivedParameterNode):
 
     name = 'Eng (*) Oil Qty Max'
     align = False
-    units = ut.QUART
+    units = ut.PERCENT
 
     @classmethod
     def can_operate(cls, available):
@@ -3167,7 +1781,7 @@ class Eng_OilQtyMin(DerivedParameterNode):
 
     name = 'Eng (*) Oil Qty Min'
     align = False
-    units = ut.QUART
+    units = ut.PERCENT
 
     @classmethod
     def can_operate(cls, available):
@@ -3397,202 +2011,7 @@ class Eng_VibN1Max(DerivedParameterNode):
                eng1=P('Eng (1) Vib N1'),
                eng2=P('Eng (2) Vib N1'),
                eng3=P('Eng (3) Vib N1'),
-               eng4=P('Eng (4) Vib N1'),
-               fan1=P('Eng (1) Vib N1 Fan'),
-               fan2=P('Eng (2) Vib N1 Fan'),
-               fan3=P('Eng (3) Vib N1 Fan'),
-               fan4=P('Eng (4) Vib N1 Fan'),
-               lpt1=P('Eng (1) Vib N1 Turbine'),
-               lpt2=P('Eng (2) Vib N1 Turbine'),
-               lpt3=P('Eng (3) Vib N1 Turbine'),
-               lpt4=P('Eng (4) Vib N1 Turbine'),
-               comp1=P('Eng (1) Vib N1 Compressor'),
-               comp2=P('Eng (2) Vib N1 Compressor'),
-               gear1=P('Eng (1) Vib N1 Gearbox'),
-               gear2=P('Eng (2) Vib N1 Gearbox')):
-
-        params = eng1, eng2, eng3, eng4, fan1, fan2, fan3, fan4, lpt1, lpt2, lpt3, lpt4, comp1, comp2, gear1, gear2
-        engines = vstack_params(*params)
-        self.array = np.ma.max(engines, axis=0)
-        self.offset = offset_select('mean', params)
-
-
-##############################################################################
-# Engine Vibration (N2)
-
-
-class Eng_VibN2Max(DerivedParameterNode):
-    '''
-    This derived parameter condenses all the available second shaft order
-    vibration measurements into a single consolidated value.
-    '''
-
-    name = 'Eng (*) Vib N2 Max'
-    align = False
-    units = None
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               eng1=P('Eng (1) Vib N2'),
-               eng2=P('Eng (2) Vib N2'),
-               eng3=P('Eng (3) Vib N2'),
-               eng4=P('Eng (4) Vib N2'),
-               hpc1=P('Eng (1) Vib N2 Compressor'),
-               hpc2=P('Eng (2) Vib N2 Compressor'),
-               hpt1=P('Eng (1) Vib N2 Turbine'),
-               hpt2=P('Eng (2) Vib N2 Turbine'),
-               hpt3=P('Eng (3) Vib N2 Turbine'),
-               hpt4=P('Eng (4) Vib N2 Turbine')):
-
-        params = eng1, eng2, eng3, eng4, hpc1, hpc2, hpt1, hpt2, hpt3, hpt4
-        engines = vstack_params(*params)
-        self.array = np.ma.max(engines, axis=0)
-        self.offset = offset_select('mean', params)
-
-
-##############################################################################
-# Engine Vibration (N3)
-
-
-class Eng_VibN3Max(DerivedParameterNode):
-    '''
-    This derived parameter condenses all the available third shaft order
-    vibration measurements into a single consolidated value.
-    '''
-
-    name = 'Eng (*) Vib N3 Max'
-    align = False
-    units = None
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               eng1=P('Eng (1) Vib N3'),
-               eng2=P('Eng (2) Vib N3'),
-               eng3=P('Eng (3) Vib N3'),
-               eng4=P('Eng (4) Vib N3'),
-               hpt1=P('Eng (1) Vib N3 Turbine'),
-               hpt2=P('Eng (2) Vib N3 Turbine'),
-               hpt3=P('Eng (3) Vib N3 Turbine'),
-               hpt4=P('Eng (4) Vib N3 Turbine')):
-
-        params = eng1, eng2, eng3, eng4, hpt1, hpt2, hpt3, hpt4
-        engines = vstack_params(*params)
-        self.array = np.ma.max(engines, axis=0)
-        self.offset = offset_select('mean', params)
-
-
-##############################################################################
-# Engine Vibration (Broadband)
-
-
-class Eng_VibBroadbandMax(DerivedParameterNode):
-    '''
-    This derived parameter condenses all the available third shaft order
-    vibration measurements into a single consolidated value.
-    '''
-
-    name = 'Eng (*) Vib Broadband Max'
-    align = False
-    units = None
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               eng1=P('Eng (1) Vib Broadband'),
-               eng2=P('Eng (2) Vib Broadband'),
-               eng3=P('Eng (3) Vib Broadband'),
-               eng4=P('Eng (4) Vib Broadband'),
-               lpt1=P('Eng (1) Vib Broadband Turbine'),
-               lpt2=P('Eng (2) Vib Broadband Turbine'),
-               comp1=P('Eng (1) Vib Broadband Compressor'),
-               comp2=P('Eng (2) Vib Broadband Compressor'),
-               gear1=P('Eng (1) Vib Broadband Gearbox'),
-               gear2=P('Eng (2) Vib Broadband Gearbox'),
-               eng1_accel_a=P('Eng (1) Vib Broadband Accel A'),
-               eng2_accel_a=P('Eng (2) Vib Broadband Accel A'),
-               eng3_accel_a=P('Eng (3) Vib Broadband Accel A'),
-               eng4_accel_a=P('Eng (4) Vib Broadband Accel A'),
-               eng1_accel_b=P('Eng (1) Vib Broadband Accel B'),
-               eng2_accel_b=P('Eng (2) Vib Broadband Accel B'),
-               eng3_accel_b=P('Eng (3) Vib Broadband Accel B'),
-               eng4_accel_b=P('Eng (4) Vib Broadband Accel B')):
-
-        params = (eng1, eng2, eng3, eng4, lpt1, lpt2, comp1, comp2, gear1, gear2,
-                  eng1_accel_a, eng2_accel_a, eng3_accel_a, eng4_accel_a,
-                  eng1_accel_b, eng2_accel_b, eng3_accel_b, eng4_accel_b)
-
-        engines = vstack_params(*params)
-        self.array = np.ma.max(engines, axis=0)
-        self.offset = offset_select('mean', params)
-
-
-class Eng_VibNpMax(DerivedParameterNode):
-    '''
-    This derived parameter condenses all the available first shaft order
-    vibration measurements into a single consolidated value.
-    '''
-
-    name = 'Eng (*) Vib Np Max'
-    align = False
-    units = None
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               eng1=P('Eng (1) Vib Np'),
-               eng2=P('Eng (2) Vib Np'),
-               fan1=P('Eng (1) Vib Np Fan'),
-               fan2=P('Eng (2) Vib Np Fan'),
-               lpt1=P('Eng (1) Vib Np Turbine'),
-               lpt2=P('Eng (2) Vib Np Turbine'),
-               comp1=P('Eng (1) Vib Np Compressor'),
-               comp2=P('Eng (2) Vib Np Compressor'),
-               gear1=P('Eng (1) Vib Np Gearbox'),
-               gear2=P('Eng (2) Vib Np Gearbox')):
-
-        params = eng1, eng2, fan1, fan2, lpt1, lpt2, comp1, comp2, gear1, gear2
-        engines = vstack_params(*params)
-        self.array = np.ma.max(engines, axis=0)
-        self.offset = offset_select('mean', params)
-
-##############################################################################
-# Engine Vibration (A)
-
-
-class Eng_VibAMax(DerivedParameterNode):
-    '''
-    This derived parameter condenses all the available first shaft order
-    vibration measurements into a single consolidated value.
-    '''
-
-    name = 'Eng (*) Vib A Max'
-    align = False
-    units = None
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               eng1=P('Eng (1) Vib (A)'),
-               eng2=P('Eng (2) Vib (A)'),
-               eng3=P('Eng (3) Vib (A)'),
-               eng4=P('Eng (4) Vib (A)')):
+               eng4=P('Eng (4) Vib N1')):
 
         params = eng1, eng2, eng3, eng4
         engines = vstack_params(*params)
@@ -3601,320 +2020,6 @@ class Eng_VibAMax(DerivedParameterNode):
 
 
 ##############################################################################
-# Engine Vibration (B)
-
-
-class Eng_VibBMax(DerivedParameterNode):
-    '''
-    This derived parameter condenses all the available second shaft order
-    vibration measurements into a single consolidated value.
-    '''
-
-    name = 'Eng (*) Vib B Max'
-    align = False
-    units = None
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               eng1=P('Eng (1) Vib (B)'),
-               eng2=P('Eng (2) Vib (B)'),
-               eng3=P('Eng (3) Vib (B)'),
-               eng4=P('Eng (4) Vib (B)')):
-
-        params = eng1, eng2, eng3, eng4
-        engines = vstack_params(*params)
-        self.array = np.ma.max(engines, axis=0)
-        self.offset = offset_select('mean', params)
-
-
-##############################################################################
-# Engine Vibration (C)
-
-
-class Eng_VibCMax(DerivedParameterNode):
-    '''
-    This derived parameter condenses all the available third shaft order
-    vibration measurements into a single consolidated value.
-    '''
-
-    name = 'Eng (*) Vib C Max'
-    align = False
-    units = None
-
-    @classmethod
-    def can_operate(cls, available):
-
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               eng1=P('Eng (1) Vib (C)'),
-               eng2=P('Eng (2) Vib (C)'),
-               eng3=P('Eng (3) Vib (C)'),
-               eng4=P('Eng (4) Vib (C)')):
-
-        params = eng1, eng2, eng3, eng4
-        engines = vstack_params(*params)
-        self.array = np.ma.max(engines, axis=0)
-        self.offset = offset_select('mean', params)
-
-
-
-
-##############################################################################
-class FuelQty(DerivedParameterNode):
-    '''
-    May be supplanted by an LFL parameter of the same name if available.
-
-    Sum of fuel in left, right, centre and other tanks where available.
-    '''
-
-    # XXX: Enabling alignment because different frequency
-    #align = False
-    units = ut.KG
-
-    @classmethod
-    def can_operate(cls, available):
-        fuel_l_and_r = ('Fuel Qty (L)', 'Fuel Qty (R)')
-        if any_of(fuel_l_and_r, available):
-            return all_of(fuel_l_and_r, available)
-        else:
-            return any_of(
-                [d for d in cls.get_dependency_names() if d != 'Airborne'],
-                available
-            )
-
-    def derive(self,
-               fuel_qty_l=P('Fuel Qty (L)'),
-               fuel_qty_c=P('Fuel Qty (C)'),
-               fuel_qty_r=P('Fuel Qty (R)'),
-               fuel_qty_trim=P('Fuel Qty (Trim)'),
-               fuel_qty_aux=P('Fuel Qty (Aux)'),
-               fuel_qty_tail=P('Fuel Qty (Tail)'),
-               fuel_qty_stab=P('Fuel Qty (Stab)'),
-               airbornes=S('Airborne')):
-        params = []
-        deps = (fuel_qty_l, fuel_qty_c, fuel_qty_r,  fuel_qty_trim,
-                      fuel_qty_aux, fuel_qty_tail, fuel_qty_stab)
-        for param in deps:
-            if not param:
-                continue
-
-            if airbornes:
-                valid_samples = 0
-                invalid_samples = 0
-                for airborne in airbornes:
-                    array = param.array[airborne.slice]
-                    valid_samples += np.ma.count(array)
-                    invalid_samples += len(array)
-                if valid_samples / float(invalid_samples) < MIN_VALID_FUEL:
-                    continue
-
-            # Repair array masks to ensure that the summed values are not too small
-            # because they do not include masked values.
-            try:
-                param.array = repair_mask(param.array)
-            except ValueError as err:
-                # Q: Should we be creating a summed Fuel Qty parameter when
-                # omitting a masked parameter? The resulting array will contain
-                # values lower than expected. The same problem will occur if
-                # a parameter has been marked invalid, though we will not
-                # be aware of the problem within a derive method.
-                self.warning('Skipping %s while calculating %s: %s. Summed '
-                             'fuel quantity may be lower than expected.',
-                             param, self, err)
-            else:
-                params.append(param)
-
-        try:
-            stacked_params = vstack_params(*params)
-            self.array = np.ma.sum(stacked_params, axis=0)
-            self.array.mask = merge_masks([p.array.mask for p in params])
-            self.offset = offset_select('mean', params)
-        except:
-            # In the case where params are all invalid or empty, return an
-            # empty array like the last (inherently recorded) array.
-            param = first_valid_parameter(*deps)
-            self.array = np_ma_masked_zeros_like(param.array)
-            self.offset = 0.0
-
-
-class FuelQtyC(DerivedParameterNode):
-    '''
-    Total fuel quantity measured in the centre tanks.
-
-    Note: A340 has up to 4 centre tanks!
-    '''
-    name = 'Fuel Qty (C)'
-    units = ut.KG
-
-    @classmethod
-    def can_operate(cls, available):
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self, fuel_qty_c_1=P('Fuel Qty (C) (1)'),
-               fuel_qty_c_2=P('Fuel Qty (C) (2)'),
-               fuel_qty_c_3=P('Fuel Qty (C) (3)'),
-               fuel_qty_c_4=P('Fuel Qty (C) (4)')):
-        # Sum all the available measurements!
-        #  Repair masks to cover data spikes we dont want Fuel Qty dropping by the value of a tank.
-        #  count arinc as 0 as instances of arinc have only been found when tanks are missing/not installed.
-        #  5 mins chosen as individual Fuel Qty tank params are often 1/64hz
-        params = (fuel_qty_c_1, fuel_qty_c_2, fuel_qty_c_3, fuel_qty_c_4)
-        repair_kwargs = {'repair_duration':500, 'raise_entirely_masked':False}
-
-        repaired_arrays = [repair_mask(p.array, frequency=p.frequency, **repair_kwargs) for p in params if p is not None]
-        stacked_params = np.ma.vstack(repaired_arrays)
-        self.array = np.ma.sum(stacked_params, axis=0)
-
-
-class FuelQtyL(DerivedParameterNode):
-    '''
-    Total fuel quantity measured in the left wing.
-    '''
-    name = 'Fuel Qty (L)'
-    units = ut.KG
-
-    @classmethod
-    def can_operate(cls, available):
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self, fuel_qty_l_1=P('Fuel Qty (L) (1)'),
-               fuel_qty_l_2=P('Fuel Qty (L) (2)'),
-               fuel_qty_l_3=P('Fuel Qty (L) (3)'),
-               fuel_qty_l_4=P('Fuel Qty (L) (4)'),
-               fuel_qty_l_5=P('Fuel Qty (L) (5)')):
-        # Sum all the available measurements!
-        #  Repair masks to cover data spikes we dont want Fuel Qty dropping by the value of a tank.
-        #  count arinc as 0 as instances of arinc have only been found when tanks are missing/not installed.
-        #  5 mins chosen as individual Fuel Qty tank params are often 1/64hz
-        params = (fuel_qty_l_1, fuel_qty_l_2,fuel_qty_l_3, fuel_qty_l_4, fuel_qty_l_5)
-        repair_kwargs = {'repair_duration':500, 'raise_entirely_masked':False}
-
-        repaired_arrays = [repair_mask(p.array, frequency=p.frequency, **repair_kwargs) for p in params if p is not None]
-        stacked_params = np.ma.vstack(repaired_arrays)
-        self.array = np.ma.sum(stacked_params, axis=0)
-
-
-class FuelQtyR(DerivedParameterNode):
-    '''
-    Total fuel quantity measured in the right wing.
-    '''
-    name = 'Fuel Qty (R)'
-    units = ut.KG
-
-    @classmethod
-    def can_operate(cls, available):
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self, fuel_qty_r_1=P('Fuel Qty (R) (1)'),
-               fuel_qty_r_2=P('Fuel Qty (R) (2)'),
-               fuel_qty_r_3=P('Fuel Qty (R) (3)'),
-               fuel_qty_r_4=P('Fuel Qty (R) (4)'),
-               fuel_qty_r_5=P('Fuel Qty (R) (5)')):
-        # Sum all the available measurements!
-        #  Repair masks to cover data spikes we dont want Fuel Qty dropping by the value of a tank.
-        #  count arinc as 0 as instances of arinc have only been found when tanks are missing/not installed.
-        #  5 mins chosen as individual Fuel Qty tank params are often 1/64hz
-        params = (fuel_qty_r_1, fuel_qty_r_2, fuel_qty_r_3, fuel_qty_r_4, fuel_qty_r_5)
-        repair_kwargs = {'repair_duration':500, 'raise_entirely_masked':False}
-
-        repaired_arrays = [repair_mask(p.array, frequency=p.frequency, **repair_kwargs) for p in params if p is not None]
-        stacked_params = np.ma.vstack(repaired_arrays)
-        self.array = np.ma.sum(stacked_params, axis=0)
-
-
-class FuelQtyAux(DerivedParameterNode):
-    '''
-    Total fuel quantity from multiple aux sources.
-    '''
-
-    name = 'Fuel Qty (Aux)'
-    units = ut.KG
-
-    @classmethod
-    def can_operate(cls, available):
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self,
-               fuel_qty_1=P('Fuel Qty (Aux) (1)'),
-               fuel_qty_2=P('Fuel Qty (Aux) (2)')):
-        # Sum all the available measurements!
-        #  Repair masks to cover data spikes we dont want Fuel Qty dropping by the value of a tank.
-        #  count arinc as 0 as instances of arinc have only been found when tanks are missing/not installed.
-        #  5 mins chosen as individual Fuel Qty tank params are often 1/64hz
-        params = (fuel_qty_1, fuel_qty_2)
-        repair_kwargs = {'repair_duration':500, 'raise_entirely_masked':False}
-
-        repaired_arrays = [repair_mask(p.array, frequency=p.frequency, **repair_kwargs) for p in params if p is not None]
-        stacked_params = np.ma.vstack(repaired_arrays)
-        self.array = np.ma.sum(stacked_params, axis=0)
-
-
-##############################################################################
-
-class GrossWeight(DerivedParameterNode):
-    '''
-    Derive gross weight from Zero Fuel Weight and Fuel Qty.
-    '''
-    align_frequency = 1
-    align_offset = 0
-    units = ut.KG
-
-    @classmethod
-    def can_operate(cls, available):
-        return (all_of(('AFR Landing Gross Weight', 'HDF Duration'), available) or
-                all_of(('AFR Takeoff Gross Weight', 'HDF Duration', 'AFR Takeoff Fuel', 'AFR Landing Fuel'), available) or
-                all_of(('Zero Fuel Weight', 'Fuel Qty'), available))
-
-    def derive(self, zfw=P('Zero Fuel Weight'), fq=P('Fuel Qty'),
-               hdf_duration=A('HDF Duration'),
-               afr_land_wgt=A('AFR Landing Gross Weight'),
-               afr_takeoff_wgt=A('AFR Takeoff Gross Weight'),
-               afr_land_fuel=A('AFR Landing Fuel'),
-               afr_takeoff_fuel=A('AFR Takeoff Fuel'),
-               touchdowns=KTI('Touchdown'),
-               liftoffs=KTI('Liftoff')):
-
-        land_weight = afr_land_wgt.value if afr_land_wgt else None
-        takeoff_weight = afr_takeoff_wgt.value if afr_takeoff_wgt else None
-        land_fuel = afr_land_fuel.value if afr_land_fuel else None
-        takeoff_fuel = afr_takeoff_fuel.value if afr_takeoff_fuel else None
-        duration = hdf_duration.value * self.frequency if hdf_duration else None
-
-        if land_weight and duration:
-            self.array = np_ma_zeros(duration)
-            if (liftoffs and touchdowns and takeoff_weight):
-                liftoff_index = int(liftoffs.get_first().index)
-                touchdown_index = int(touchdowns.get_last().index)
-                self.array[:liftoff_index] = np.ma.masked
-                self.array[touchdown_index:] = np.ma.masked
-                index_difference = touchdown_index+1 - liftoff_index
-                self.array[liftoff_index:touchdown_index+1] = \
-                    np.linspace(takeoff_weight, land_weight, index_difference)
-            else:
-                self.array.fill(land_weight)
-
-        elif takeoff_weight and land_fuel and takeoff_fuel and duration:
-            self.array = np_ma_zeros(duration)
-            land_weight = takeoff_weight - takeoff_fuel + land_fuel
-            if liftoffs and touchdowns:
-                liftoff_index = int(liftoffs.get_first().index)
-                touchdown_index = int(touchdowns.get_last().index)
-                self.array[:liftoff_index] = np.ma.masked
-                self.array[touchdown_index:] = np.ma.masked
-                index_difference = touchdown_index+1 - liftoff_index
-                self.array[liftoff_index:touchdown_index+1] = \
-                    np.linspace(takeoff_weight, land_weight, index_difference)
-            else:
-                self.array.fill(land_weight)
-        else:
-            zfw_value = np.bincount(zfw.array.compressed().astype(np.int)).argmax()
-            self.array = fq.array + zfw_value
-
 
 class ZeroFuelWeight(DerivedParameterNode):
     '''
@@ -3935,153 +2040,11 @@ class ZeroFuelWeight(DerivedParameterNode):
 
     @classmethod
     def can_operate(cls, available):
-        return ('HDF Duration' in available and
-                ('Dry Operating Weight' in available or
-                 all_of(('Fuel Qty', 'Gross Weight'), available)))
+        return ('HDF Duration' in available and all_of(('Fuel Qty', 'Gross Weight'), available))
 
-    def derive(self, fuel_qty=P('Fuel Qty'), gross_wgt=P('Gross Weight'),
-               dry_operating_wgt=A('Dry Operating Weight'),
-               payload=A('Payload'), duration=A('HDF Duration')):
-        if gross_wgt and fuel_qty:
-            weight = np.ma.median(gross_wgt.array - fuel_qty.array)
-        else:
-            weight = dry_operating_wgt.value
-            if payload and payload.value:
-                weight += payload.value
+    def derive(self, fuel_qty=P('Fuel Qty'), gross_wgt=P('Gross Weight'), duration=A('HDF Duration')):
+        weight = np.ma.median(gross_wgt.array - fuel_qty.array)
         self.array = np.ma.ones(int(duration.value * self.frequency)) * weight
-
-
-class GrossWeightSmoothed(DerivedParameterNode):
-    '''
-    Gross weight is usually sampled at a low rate and can be very poor in the
-    climb, often indicating an increase in weight at takeoff and this effect
-    may not end until the aircraft levels in the cruise. Also some aircraft
-    weight data saturates at high AUW values, and while the POLARIS Analysis
-    Engine can mask this data a subsitute is needed for takeoff weight (hence
-    V2) calculations. This can only be provided by extrapolation backwards
-    from data available later in the flight.
-
-    This routine uses fuel flow to compute short term changes in weight and
-    ties this to the last valid measurement before landing. This is used
-    because we need to accurately reflect the landing weight for events
-    relating to landing (errors introduced by extrapolating to the takeoff
-    weight are less significant).
-
-    We avoid using the recorded fuel weight in this calculation, however it
-    is used in the Zero Fuel Weight calculation.
-
-    If we do not have Fuel Flow we fall back to the unsmoothed Gross Weight.
-    '''
-
-    units = ut.KG
-
-    @classmethod
-    def can_operate(cls, available):
-        return 'Gross Weight' in available
-
-    def derive(self,
-               ff=P('Eng (*) Fuel Flow'),
-               gw=P('Gross Weight'),
-               climbs=S('Climbing'),
-               descends=S('Descending'),
-               airs=S('Airborne')):
-
-        gw_masked = gw.array.copy()
-
-        if ff and airs:
-
-            # From the entire flight, we remove the periods we are not interested in...
-
-            # We are not interested in matching the data to taxi periods
-            gw_masked = mask_outside_slices(gw_masked, airs.get_slices())
-            # You can get really silly numbers on some aircraft in the climb
-            gw_masked = mask_inside_slices(gw_masked, climbs.get_slices())
-            # And we really don't believe that the weight can increase
-            gw_masked = np.ma.masked_where(np.ma.ediff1d(gw_masked, to_end=0.0) > 0.0, gw_masked)
-
-            flow = repair_mask(ff.array)
-            fuel_to_burn = np.ma.array(integrate(flow / 3600.0, ff.frequency,
-                                                 direction='reverse'))
-
-            try:
-                # Find the last point where the two arrays intercept
-                valid_index = np.ma.intersect1d(gw_masked.nonzero()[0],
-                                                fuel_to_burn.nonzero()[0])[-1]
-            except IndexError:
-                self.warning(
-                    "'%s' had no valid samples. Reverting to '%s'.", self.name,
-                    gw.name)
-                self.array = gw.array
-                return
-
-            offset = gw_masked[valid_index] - fuel_to_burn[valid_index]
-
-            self.array = fuel_to_burn + offset
-
-            # Test that the resulting array is sensible compared with Gross Weight.
-            where_array = np.ma.where(self.array)[0]
-            test_index = where_array[len(where_array) // 2]
-            test_difference = \
-                abs(gw.array[test_index] - self.array[test_index]) > 1000
-            if test_difference > 1000: # Q: Is 1000 too large?
-                raise ValueError(
-                    "'%s' difference from '%s' at half-way point is greater than "
-                    "'%s': '%s'." % self.name, gw.name, 1000, test_difference)
-        else:
-            self.array = gw.array
-
-
-class Groundspeed(DerivedParameterNode):
-    '''
-    This caters for cases where some preprocessing is required.
-
-    :param frame: The frame attribute, e.g. '737-i'
-    :type frame: An attribute
-    :returns groundspeed as the mean between two valid sensors.
-    :type parameter object.
-    '''
-
-    align = False
-    units = ut.KT
-
-    @classmethod
-    def can_operate(cls, available, ac_type=A('Aircraft Type'),
-                    precise=A('Precise Positioning')):
-        gspd_sources = any_of(('Groundspeed (1)', 'Groundspeed (2)'),
-                              available)
-        lat_lon = all_of(('Latitude Prepared', 'Longitude Prepared'),
-                         available)
-        return gspd_sources or (lat_lon and ac_type == helicopter
-                                and precise.value)
-
-    def derive(self,
-               # aeroplane
-               source_A=P('Groundspeed (1)'),
-               source_B=P('Groundspeed (2)'),
-               # helicopter
-               lat=P('Latitude Prepared'),
-               lon=P('Longitude Prepared'),
-               ac_type=A('Aircraft Type')):
-
-        if source_A or source_B:
-            self.array, self.frequency, self.offset = \
-                blend_two_parameters(source_A, source_B)
-        elif ac_type == helicopter:
-            '''
-            Calculation of Groundspeed from latitude and longitude
-
-            Made frame dependent to avoid inadvertant use of this code
-            where a groundspeed signal may be available under a different name.
-            '''
-            gs = groundspeed_from_position(lat.array, lon.array, lat.frequency)
-
-            # In some data segments, e.g. ground runs, the data is all masked, so don't create a derived parameter.
-            if np.ma.count(gs):
-                self.array = np.ma.masked_greater(gs, 400)
-            else:
-                self.array = np_ma_zeros_like(lat.array)
-            self.frequency = lat.frequency
-            self.offset = (lat.offset + lon.offset) / 2.0
 
 
 class GroundspeedSigned(DerivedParameterNode):
@@ -4096,8 +2059,6 @@ class GroundspeedSigned(DerivedParameterNode):
     def derive(self,
                gspd=P('Groundspeed'),
                power=P('Eng (*) Any Running'),
-               ac_type=A('Aircraft Type'),
-               precise=A('Precise Positioning'),
                taxis=S('Taxiing'),
                lat=P('Latitude Prepared'),
                lon=P('Longitude Prepared'),
@@ -4119,13 +2080,10 @@ class GroundspeedSigned(DerivedParameterNode):
             else:
                 self.array[pushbacks[0]]*=(-1.0)
 
-        if ac_type == aeroplane and precise.value:
-            # We will also check the taxi speeds against the groundspeed, as some aircraft overreport
-            # the speed on the ground. Note we are not altering the in-flight data here.
-            for taxi in taxis:
-                tx = taxi.slice
-                gsp = groundspeed_from_position(lat.array[tx], lon.array[tx], lat.frequency)
-                self.array[tx] = np.ma.minimum(gspd.array[tx], gsp)
+        for taxi in taxis:
+            tx = taxi.slice
+            gsp = groundspeed_from_position(lat.array[tx], lon.array[tx], lat.frequency)
+            self.array[tx] = np.ma.minimum(gspd.array[tx], gsp)
 
 
 class FlapAngle(DerivedParameterNode):
@@ -5556,7 +3514,7 @@ class VerticalSpeedInertial(DerivedParameterNode):
     def derive(self,
                az = P('Acceleration Vertical'),
                alt_std = P('Altitude STD Smoothed'),
-               alt_rad = P('Altitude Radio Offset Removed'),
+               alt_rad = P('Altitude Radio'),
                fast = S('Fast'),
                ac_type=A('Aircraft Type')):
 

@@ -444,7 +444,7 @@ class TestFlightNumber(unittest.TestCase):
     def test_derive_ascii(self):
         flight_number_param = P('Flight Number',
                                 array=np.ma.masked_array(['ABC', 'DEF', 'DEF'],
-                                                         dtype=np.string_))
+                                                         dtype=np.bytes_))
         flight_number = FlightNumber()
         flight_number.set_flight_attr = Mock()
         flight_number.derive(flight_number_param)

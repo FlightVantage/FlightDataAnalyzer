@@ -77,3 +77,5 @@ tests/test_data/temp/*
 !*/.git*
 /tests/test_data/Specimen_Flight_process.hdf5
 /analysis_engine/*results.csv
+*.h5
+*.hdf5

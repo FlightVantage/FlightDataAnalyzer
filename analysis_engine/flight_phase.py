@@ -1539,7 +1539,7 @@ class TakeoffRunwayHeading(FlightPhaseNode):
 
 class RejectedTakeoff(FlightPhaseNode):
     '''
-    Rejected Takeoff based on Acceleration Longitudinal Offset Removed
+    Rejected Takeoff based on Acceleration Longitudinal
     exceeding the TAKEOFF_ACCELERATION_THRESHOLD and not being followed by
     a liftoff.
 
@@ -1558,7 +1558,7 @@ class RejectedTakeoff(FlightPhaseNode):
 
     @classmethod
     def can_operate(cls, available, seg_type=A('Segment Type')):
-        req =  all_of(('Acceleration Longitudinal Offset Removed',
+        req =  all_of(('Acceleration Longitudinal',
                        'Eng (*) All Running',
                        'Grounded',
                        'Segment Type'
@@ -1571,7 +1571,7 @@ class RejectedTakeoff(FlightPhaseNode):
             return False
 
     def derive(self,
-               accel_lon=P('Acceleration Longitudinal Offset Removed'),
+               accel_lon=P('Acceleration Longitudinal'),
                eng_running=M('Eng (*) All Running'),
                groundeds=S('Grounded'),
                eng_n1=P('Eng (*) N1 Max'),
