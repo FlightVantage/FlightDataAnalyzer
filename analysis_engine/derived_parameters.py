@@ -114,8 +114,6 @@ from analysis_engine.settings import (
     ALTITUDE_RADIO_OFFSET_LIMIT,
     ALTITUDE_RADIO_MAX_RANGE,
     ALTITUDE_AAL_TRANS_ALT,
-    ALTITUDE_AGL_SMOOTHING,
-    ALTITUDE_AGL_TRANS_ALT,
     AZ_WASHOUT_TC,
     BOUNCED_LANDING_THRESHOLD,
     CLIMB_THRESHOLD,
@@ -1055,7 +1053,7 @@ class Eng_FuelFlow(DerivedParameterNode):
 
     name = 'Eng (*) Fuel Flow'
     align = False
-    units = ut.LBS_H
+    units = ut.LB_H
 
     @classmethod
     def can_operate(cls, available):
@@ -3917,73 +3915,6 @@ class Speedbrake(DerivedParameterNode):
             self.merge_spoiler(spoiler_l, spoiler_r)
 
 
-
-class SpeedbrakeHandle(DerivedParameterNode):
-    '''
-    '''
-
-    units = ut.DEGREE
-
-    @classmethod
-    def can_operate(cls, available):
-        return any_of((
-            'Speedbrake Handle (L)',
-            'Speedbrake Handle (R)',
-            'Speedbrake Handle (C)',
-            'Speedbrake Handle (1)',
-            'Speedbrake Handle (2)',
-            'Speedbrake Handle (3)',
-            'Speedbrake Handle (4)',
-        ), available)
-
-    def derive(self,
-               sbh_l=P('Speedbrake Handle (L)'),
-               sbh_r=P('Speedbrake Handle (R)'),
-               sbh_c=P('Speedbrake Handle (C)'),
-               sbh_1=P('Speedbrake Handle (1)'),
-               sbh_2=P('Speedbrake Handle (2)'),
-               sbh_3=P('Speedbrake Handle (3)'),
-               sbh_4=P('Speedbrake Handle (4)')):
-
-        available = [par for par in [sbh_l, sbh_r, sbh_c, sbh_1, sbh_2, sbh_3, sbh_4] if par]
-        if len(available) > 1:
-            self.array = blend_parameters(
-                available, self.offset, self.frequency)
-        elif len(available) == 1:
-            self.array = available[0].array
-
-
-class Stabilizer(DerivedParameterNode):
-    '''
-    Combination of multi-part stabilizer elements.
-
-    Three sensors measure the input shaft angle, converted here for the 777 surface.
-
-    See D247W018-9 Page 2677
-    '''
-
-    units = ut.DEGREE
-
-    def derive(self,
-               src_1=P('Stabilizer (1)'),
-               src_2=P('Stabilizer (2)'),
-               src_3=P('Stabilizer (3)'),
-               frame = A('Frame'),
-               ):
-
-        frame_name = frame.value if frame else ''
-
-        if frame_name == '777':
-            sources = [src_1, src_2, src_3]
-            self.offset = 0.0
-            self.frequency = src_1.frequency
-            shaft_angle = blend_parameters(sources, offset=self.offset,
-                                           frequency=self.frequency)
-            self.array = 0.0503 * shaft_angle - 3.4629
-        else:
-            raise ValueError('Stabilizer called but not for 777 frame.')
-
-
 class ApproachRange(DerivedParameterNode):
     '''
     This is the range to the touchdown point for both ILS and visual
@@ -4183,86 +4114,6 @@ class ApproachRange(DerivedParameterNode):
 
 
 ##############################################################################
-
-
-class VOR1Frequency(DerivedParameterNode):
-    '''
-    Extraction of VOR tuned frequencies from receiver (1).
-    '''
-
-    name = 'VOR (1) Frequency'
-    units = ut.MHZ
-
-    def derive(self, f=P('ILS-VOR (1) Frequency')):
-        self.array = filter_vor_ils_frequencies(f.array, 'VOR')
-
-
-class VOR2Frequency(DerivedParameterNode):
-    '''
-    Extraction of VOR tuned frequencies from receiver (1).
-    '''
-
-    name = 'VOR (2) Frequency'
-    units = ut.MHZ
-
-    def derive(self, f=P('ILS-VOR (2) Frequency')):
-        self.array = filter_vor_ils_frequencies(f.array, 'VOR')
-
-class WindSpeed(DerivedParameterNode):
-    '''
-    Required for Embraer 135-145 Data Frame
-    '''
-
-    align = False
-    units = ut.KT
-
-    def derive(self, wind_1=P('Wind Speed (1)'), wind_2=P('Wind Speed (2)')):
-        self.array, self.frequency, self.offset = \
-            blend_two_parameters(wind_1, wind_2)
-
-
-class WindDirection(DerivedParameterNode):
-    '''
-    Recorded wind direction is always True.
-
-    Either combines two separate Wind Direction parameters.
-    The Embraer 135-145 data frame includes two sources.
-    '''
-
-    align = False
-    units = ut.DEGREE
-
-    @classmethod
-    def can_operate(cls, available):
-        return (('Wind Direction (1)' in available or
-                 'Wind Direction (2)' in available))
-
-    def derive(self, wind_1=P('Wind Direction (1)'),
-               wind_2=P('Wind Direction (2)')):
-
-        if wind_1 or wind_2:
-            self.array, self.frequency, self.offset = \
-                blend_two_parameters(wind_1, wind_2)
-
-
-class WindDirectionTrue(DerivedParameterNode):
-    '''
-    This is a copy of the above parameter - Wind Direction.
-    We need to keep that for now as some data exports use Wind Direction True.
-
-    Previously this parameter was Wind Direction + magnetic variation, and was
-    created in assumption that Wind Direction was magnetic, not true, which has
-    been proven to be incorrect.
-    '''
-
-    align = False
-    units = ut.DEGREE
-
-    def derive(self, wind_dir=P('Wind Direction'),):
-
-        self.array = wind_dir.array
-
-
 class WindDirectionMagnetic(DerivedParameterNode):
     '''
     Compensates for magnetic variation, which will have been computed
@@ -4283,145 +4134,6 @@ class WindDirectionMagnetic(DerivedParameterNode):
         var = mag_var.array if mag_var and np.ma.count(mag_var.array) else rwy_var.array
         self.array = (wind.array - var) % 360.0
 
-
-class WheelSpeedLeft(DerivedParameterNode):
-    '''
-    Merge the various recorded wheel speed signals from the left hand bogie.
-    '''
-
-    name = 'Wheel Speed (L)'
-    align = False
-    units = ut.METER_S
-
-    @classmethod
-    def can_operate(cls, available):
-        return 'Wheel Speed (L) (1)' in available
-
-    def derive(self, ws_1=P('Wheel Speed (L) (1)'), ws_2=P('Wheel Speed (L) (2)'),
-               ws_3=P('Wheel Speed (L) (3)'), ws_4=P('Wheel Speed (L) (4)')):
-        sources = [ws_1, ws_2, ws_3, ws_4]
-        self.offset = 0.0
-        self.frequency = 4.0
-        self.array = blend_parameters(sources, self.offset, self.frequency)
-
-
-class WheelSpeedRight(DerivedParameterNode):
-    '''
-    Merge the various recorded wheel speed signals from the right hand bogie.
-    '''
-
-    name = 'Wheel Speed (R)'
-    align = False
-    units = ut.METER_S
-
-    @classmethod
-    def can_operate(cls, available):
-        return 'Wheel Speed (R) (1)' in available
-
-    def derive(self, ws_1=P('Wheel Speed (R) (1)'), ws_2=P('Wheel Speed (R) (2)'),
-               ws_3=P('Wheel Speed (R) (3)'), ws_4=P('Wheel Speed (R) (4)')):
-        sources = [ws_1, ws_2, ws_3, ws_4]
-        self.offset = 0.0
-        self.frequency = 4.0
-        self.array = blend_parameters(sources, self.offset, self.frequency)
-
-
-class AirspeedSelectedForApproaches(DerivedParameterNode):
-    '''
-    Use Airspeed Selected if frequency >= 0.25, otherwise upsample to 1Hz using
-    next sampled value.
-    '''
-    units = ut.KT
-
-    def derive(self, aspd=P('Airspeed Selected'), fast=S('Fast')):
-        if aspd.frequency >= 0.25:
-            self.array = aspd.array
-            return
-
-        rep = 1 // aspd.frequency
-        array = repair_mask(mask_outside_slices(aspd.array, fast.get_slices()), method='fill_start', repair_duration=None)
-        array = array.repeat(rep)
-        if aspd.offset >= 1:
-            # Compensate for the offset of the source parameter to align the
-            # value steps with the recorded ones
-            offset = int(aspd.offset)
-            array = np.ma.concatenate(
-                (np_ma_masked_zeros(offset), array[:-offset]))
-        self.array = np.ma.concatenate([array[int(rep - 1):], array[-int((rep - 1)):]])
-        self.frequency = 1
-        self.offset = 0
-
-
-class AirspeedSelected(DerivedParameterNode):
-    '''
-    Merge the various recorded Airspeed Selected signals.
-    '''
-
-    name = 'Airspeed Selected'
-    align = False
-    units = ut.KT
-
-    @classmethod
-    def can_operate(cls, available):
-        return any_of(cls.get_dependency_names(), available)
-
-    def derive(self, as_l=P('Airspeed Selected (L)'),
-               as_r=P('Airspeed Selected (R)'),
-               as_mcp=P('Airspeed Selected (MCP)'),
-               as_1=P('Airspeed Selected (1)'),
-               as_2=P('Airspeed Selected (2)'),
-               as_3=P('Airspeed Selected (3)'),
-               as_4=P('Airspeed Selected (4)')):
-        sources = [as_l, as_r, as_mcp, as_1, as_2, as_3, as_4]
-        sources = [s for s in sources if s is not None]
-        # Constrict number of sources to be a power of 2 for an even alignable
-        # frequency.
-        sources = sources[:power_floor(len(sources))]
-        self.offset = 0.0
-        self.frequency = len(sources) * sources[0].frequency
-        self.array = blend_parameters(sources, self.offset, self.frequency)
-
-
-class WheelSpeed(DerivedParameterNode):
-    '''
-    Merge Left and Right wheel speeds.
-    '''
-    # Q: Should wheel speed Centre (C) be merged too?
-    align = False
-    units = ut.METER_S
-
-    def derive(self, ws_l=P('Wheel Speed (L)'), ws_r=P('Wheel Speed (R)')):
-        self.array, self.frequency, self.offset = \
-            blend_two_parameters(ws_l, ws_r)
-
-
-class Track(DerivedParameterNode):
-    '''
-    Magnetic Track Heading of the Aircraft by adding Drift from track to the
-    aircraft Heading.
-
-    Range 0 to 360
-    '''
-
-    units = ut.DEGREE
-
-    def derive(self, heading=P('Heading'), drift=P('Drift')):
-        self.array = (heading.array + drift.array) % 360.0
-
-
-class TrackTrue(DerivedParameterNode):
-    '''
-    True Track Heading of the Aircraft by adding Drift from track to the
-    aircraft's True Heading.
-
-    Range 0 to 360
-    '''
-
-    units = ut.DEGREE
-
-    def derive(self, heading=P('Heading True'), drift=P('Drift')):
-        #Note: drift is to the right of heading, so: Track = Heading + Drift
-        self.array = (heading.array + drift.array) % 360.0
 
 class TrackContinuous(DerivedParameterNode):
     '''

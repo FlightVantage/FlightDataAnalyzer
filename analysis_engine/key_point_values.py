@@ -109,7 +109,6 @@ from analysis_engine.settings import (
     CONTROL_FORCE_THRESHOLD,
     GRAVITY_IMPERIAL,
     GRAVITY_METRIC,
-    HOVER_MIN_DURATION,
     HYSTERESIS_FPALT,
     MIN_HEADING_CHANGE,
     NAME_VALUES_CONF,
@@ -1790,22 +1789,13 @@ class Airspeed1000To500FtMax(KeyPointValueNode):
                descending=S('Descending'),
                ac_type=A('Aircraft Type')):
 
-        if ac_type and ac_type.value == 'helicopter':
-            alt_band = np.ma.masked_outside(alt_agl.array, 1000, 500)
-            alt_descent_sections = valid_slices_within_array(alt_band, descending)
-            self.create_kpvs_within_slices(
-                air_spd.array,
-                alt_descent_sections,
-                max_value,
-                min_duration=HOVER_MIN_DURATION,
-                freq=air_spd.frequency)
-        else:
-            alt_band = np.ma.masked_outside(alt_aal.array, 1000, 500)
-            alt_descent_sections = valid_slices_within_array(alt_band, final_app)
-            self.create_kpvs_within_slices(
-                air_spd.array,
-                alt_descent_sections,
-                max_value)
+
+        alt_band = np.ma.masked_outside(alt_aal.array, 1000, 500)
+        alt_descent_sections = valid_slices_within_array(alt_band, final_app)
+        self.create_kpvs_within_slices(
+            air_spd.array,
+            alt_descent_sections,
+            max_value)
 
 
 class Airspeed1000To500FtMin(KeyPointValueNode):
@@ -1854,21 +1844,11 @@ class Airspeed500To20FtMax(KeyPointValueNode):
                descending=S('Descent'),
                ac_type=A('Aircraft Type')):
 
-        if ac_type and ac_type.value == 'helicopter':
-            alt_band = np.ma.masked_outside(alt_agl.array, 500, 20)
-            alt_descent_sections = valid_slices_within_array(alt_band, descending)
-            self.create_kpvs_within_slices(
-                air_spd.array,
-                alt_descent_sections,
-                max_value,
-                min_duration=HOVER_MIN_DURATION,
-                freq=air_spd.frequency)
-        else:
-            # TODO: Include level flight once Sections use intervals.
-            self.create_kpvs_within_slices(
-                air_spd.array,
-                alt_aal.slices_from_to(500, 20),
-                max_value)
+        # TODO: Include level flight once Sections use intervals.
+        self.create_kpvs_within_slices(
+            air_spd.array,
+            alt_aal.slices_from_to(500, 20),
+            max_value)
 
 
 class Airspeed500To20FtMin(KeyPointValueNode):
@@ -7884,7 +7864,7 @@ class ILSGlideslopeDeviation1500To1000FtMax(KeyPointValueNode):
                 ils_glideslope.array,
                 desc_ils_bands,
                 max_abs_value,
-                min_duration=HOVER_MIN_DURATION,
+                min_duration=5,
                 freq=ils_glideslope.frequency)
         else:
             alt_bands = alt_aal.slices_from_to(1500, 1000)
@@ -7931,7 +7911,7 @@ class ILSGlideslopeDeviation1000To500FtMax(KeyPointValueNode):
                 ils_glideslope.array,
                 desc_ils_bands,
                 max_abs_value,
-                min_duration=HOVER_MIN_DURATION,
+                min_duration=5,
                 freq=ils_glideslope.frequency)
         else:
             alt_bands = alt_aal.slices_from_to(1000, 500)
@@ -7978,7 +7958,7 @@ class ILSGlideslopeDeviation500To200FtMax(KeyPointValueNode):
                 ils_glideslope.array,
                 desc_ils_bands,
                 max_abs_value,
-                min_duration=HOVER_MIN_DURATION,
+                min_duration=5,
                 freq=ils_glideslope.frequency)
         else:
             alt_bands = alt_aal.slices_from_to(500, 200)
@@ -8226,7 +8206,7 @@ class ILSLocalizerDeviation1500To1000FtMax(KeyPointValueNode):
                 ils_localizer.array,
                 desc_ils_bands,
                 max_abs_value,
-                min_duration=HOVER_MIN_DURATION,
+                min_duration=5,
                 freq=ils_localizer.frequency)
         else:
             alt_bands = alt_aal.slices_from_to(1500, 1000)
@@ -8294,7 +8274,7 @@ class ILSLocalizerDeviation1000To500FtMax(KeyPointValueNode):
                 ils_localizer.array,
                 desc_ils_bands,
                 max_abs_value,
-                min_duration=HOVER_MIN_DURATION,
+                min_duration=5,
                 freq=ils_localizer.frequency)
         else:
             alt_bands = alt_aal.slices_from_to(1000, 500)
@@ -8341,7 +8321,7 @@ class ILSLocalizerDeviation500To200FtMax(KeyPointValueNode):
                 ils_localizer.array,
                 desc_ils_bands,
                 max_abs_value,
-                min_duration=HOVER_MIN_DURATION,
+                min_duration=5,
                 freq=ils_localizer.frequency)
         else:
             alt_bands = alt_aal.slices_from_to(500, 200)
@@ -13082,7 +13062,7 @@ class HeadingVariation300To50Ft(KeyPointValueNode):
             alt_band = np.ma.masked_outside(alt_agl.array, 50, 300)
             alt_app_sections = valid_slices_within_array(alt_band, descending)
             for band in alt_app_sections:
-                if slice_duration(band, head.frequency) < HOVER_MIN_DURATION:
+                if slice_duration(band, head.frequency) < 5:
                     continue
                 dev = np.ma.ptp(head.array[band])
                 self.create_kpv(band.stop, dev)
@@ -14578,7 +14558,7 @@ class Pitch1000To500FtMax(KeyPointValueNode):
                 pitch.array,
                 alt_app_sections,
                 max_value,
-                min_duration=HOVER_MIN_DURATION,
+                min_duration=5,
                 freq=pitch.frequency)
         else:
             alt_band = np.ma.masked_outside(alt_aal.array, 1000, 500)
@@ -14624,7 +14604,7 @@ class Pitch1000To500FtMin(KeyPointValueNode):
                 pitch.array,
                 alt_app_sections,
                 min_value,
-                min_duration=HOVER_MIN_DURATION,
+                min_duration=5,
                 freq=pitch.frequency)
         else:
             alt_band = np.ma.masked_outside(alt_aal.array, 1000, 500)
@@ -14670,7 +14650,7 @@ class Pitch500To50FtMax(KeyPointValueNode):
                 pitch.array,
                 alt_app_sections,
                 max_value,
-                min_duration=HOVER_MIN_DURATION,
+                min_duration=5,
                 freq=pitch.frequency)
         else:
             alt_band = np.ma.masked_outside(alt_aal.array, 500, 50)
@@ -14716,7 +14696,7 @@ class Pitch500To50FtMin(KeyPointValueNode):
                 pitch.array,
                 alt_app_sections,
                 min_value,
-                min_duration=HOVER_MIN_DURATION,
+                min_duration=5,
                 freq=pitch.frequency)
         else:
             alt_band = np.ma.masked_outside(alt_aal.array, 500, 50)

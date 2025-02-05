@@ -150,7 +150,7 @@ def powerset(iterable):
 
 def get_param_kwarg_names(method):
     """
-    Inspects a method's arguments and returns the defaults values of keyword
+    Inspects a method's arguments and returns the default values of keyword
     arguments defined in the method.
 
     Raises ValueError if there are any args defined other than "self".
@@ -160,20 +160,19 @@ def get_param_kwarg_names(method):
     :returns: Ordered list of default values of keyword arguments
     :rtype: list
     """
-    try:
-        args, varargs, varkw, defaults = inspect.getfullargspec(method)
-    except AttributeError:
-        args, varargs, varkw, defaults = inspect.getfullargspec(method)[:4]
+    import inspect
+    spec = inspect.getfullargspec(method)
+    args = spec.args
+    varargs = spec.varargs
+    defaults = spec.defaults
+
     if not defaults or args[:-len(defaults)] != ['self'] or varargs:
+        # Using __qualname__ to identify the method as im_class is not available in Py3.
         raise ValueError("Node '%s' must have kwargs, must accept at least one "
-                         "kwarg and not any args other than 'self'. args:'%s' "
-                         "*args:'%s'"
-                         % (method.im_class.get_name(), args[1:], varargs))
-    if varkw:
-        # One day, could insert all available params as kwargs - but cannot
-        # guarantee requirements will work
+                         "kwarg and not any args other than 'self'. args: '%s' "
+                         "*args: '%s'" % (method.__qualname__, args[1:], varargs))
+    if spec.varkw:
         raise NotImplementedError("Cannot define **kwargs")
-    # alternative: return dict(zip(defaults, args[-len(defaults):]))
     return defaults
 
 

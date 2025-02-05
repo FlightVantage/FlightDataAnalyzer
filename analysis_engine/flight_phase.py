@@ -75,15 +75,10 @@ from analysis_engine.settings import (
     LANDING_ROLL_END_SPEED,
     LANDING_THRESHOLD_HEIGHT,
     LEVEL_FLIGHT_MIN_DURATION,
-    ROTORSPEED_THRESHOLD,
     TAKEOFF_ACCELERATION_THRESHOLD,
     VERTICAL_SPEED_FOR_CLIMB_PHASE,
     VERTICAL_SPEED_FOR_DESCENT_PHASE,
     VERTICAL_SPEED_FOR_LEVEL_FLIGHT,
-
-    LANDING_COLLECTIVE_PERIOD,
-    LANDING_HEIGHT,
-    LANDING_TRACEBACK_PERIOD
 )
 
 from flightdatautilities.numpy_utils import slices_int
@@ -753,7 +748,7 @@ class Fast(FlightPhaseNode):
         if ac_type == helicopter:
             nr = repair_mask(rotor_speed.array, repair_duration=600,
                              raise_entirely_masked=False)
-            fast = np.ma.masked_less(nr, ROTORSPEED_THRESHOLD)
+            fast = np.ma.masked_less(nr, 5)
             fast_slices = np.ma.clump_unmasked(fast)
         else:
             ias = repair_mask(airspeed.array, repair_duration=600,
@@ -1432,8 +1427,8 @@ class Landing(FlightPhaseNode):
         for air in airs:
             tdn = air.stop_edge
             # Scan back to find either when we descend through LANDING_HEIGHT or had peak hover height.
-            to_scan = tdn - alt_agl.frequency*LANDING_TRACEBACK_PERIOD
-            landing_begin = index_at_value(alt_agl.array, LANDING_HEIGHT,
+            to_scan = tdn - alt_agl.frequency
+            landing_begin = index_at_value(alt_agl.array, 5,
                                            _slice=slice(tdn, to_scan , -1),
                                            endpoint='exact')
 
