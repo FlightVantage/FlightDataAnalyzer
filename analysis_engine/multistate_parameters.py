@@ -65,63 +65,63 @@ from flightdatautilities.numpy_utils import slices_int
 
 logger = logging.getLogger(name=__name__)
 
-class APEngaged(MultistateDerivedParameterNode):
-    '''
-    Determines if *any* of the "AP (*) Engaged" parameters are recording the
-    state of Engaged.
+# class APEngaged(MultistateDerivedParameterNode):
+#     '''
+#     Determines if *any* of the "AP (*) Engaged" parameters are recording the
+#     state of Engaged.
 
-    This is a discrete with only the Engaged state.
-    '''
+#     This is a discrete with only the Engaged state.
+#     '''
 
-    name = 'AP Engaged'
-    units = None
-    values_mapping = {0: '-', 1: 'Engaged'}
+#     name = 'AP Engaged'
+#     units = None
+#     values_mapping = {0: '-', 1: 'Engaged'}
 
-    @classmethod
-    def can_operate(cls, available):
-        return any_of(cls.get_dependency_names(), available)
+#     @classmethod
+#     def can_operate(cls, available):
+#         return any_of(cls.get_dependency_names(), available)
 
-    def derive(self,
-               ap1=M('AP (1) Engaged'),
-               ap2=M('AP (2) Engaged'),
-               ap3=M('AP (3) Engaged')):
+#     def derive(self,
+#                ap1=M('AP (1) Engaged'),
+#                ap2=M('AP (2) Engaged'),
+#                ap3=M('AP (3) Engaged')):
 
-        stacked = vstack_params_where_state(
-            (ap1, 'Engaged'),
-            (ap2, 'Engaged'),
-            (ap3, 'Engaged'),
-        )
-        self.array = stacked.any(axis=0)
-        self.array.mask = stacked.mask.any(axis=0)
+#         stacked = vstack_params_where_state(
+#             (ap1, 1.0),
+#             (ap2, 1.0),
+#             (ap3, 1.0),
+#         )
+#         self.array = stacked.any(axis=0)
+#         self.array.mask = stacked.mask.any(axis=0)
 
 
-class APChannelsEngaged(MultistateDerivedParameterNode):
-    '''
-    Assess the number of autopilot systems engaged.
+# class APChannelsEngaged(MultistateDerivedParameterNode):
+#     '''
+#     Assess the number of autopilot systems engaged.
 
-    Airbus and Boeing = 1 autopilot at a time except when "Land" mode
-    selected when 2 (Dual) or 3 (Triple) can be engaged. Airbus favours only
-    2 APs, Boeing is happier with 3 though some older types may only have 2.
-    '''
-    name = 'AP Channels Engaged'
-    units = None
-    values_mapping = {0: '-', 1: 'Single', 2: 'Dual', 3: 'Triple'}
+#     Airbus and Boeing = 1 autopilot at a time except when "Land" mode
+#     selected when 2 (Dual) or 3 (Triple) can be engaged. Airbus favours only
+#     2 APs, Boeing is happier with 3 though some older types may only have 2.
+#     '''
+#     name = 'AP Channels Engaged'
+#     units = None
+#     values_mapping = {0: '-', 1: 'Single', 2: 'Dual', 3: 'Triple'}
 
-    @classmethod
-    def can_operate(cls, available):
-        return len(available) >= 2
+#     @classmethod
+#     def can_operate(cls, available):
+#         return len(available) >= 2
 
-    def derive(self,
-               ap1=M('AP (1) Engaged'),
-               ap2=M('AP (2) Engaged'),
-               ap3=M('AP (3) Engaged')):
-        stacked = vstack_params_where_state(
-            (ap1, 'Engaged'),
-            (ap2, 'Engaged'),
-            (ap3, 'Engaged'),
-        )
-        self.array = stacked.sum(axis=0)
-        self.offset = offset_select('mean', [ap1, ap2, ap3])
+#     def derive(self,
+#                ap1=M('AP (1) Engaged'),
+#                ap2=M('AP (2) Engaged'),
+#                ap3=M('AP (3) Engaged')):
+#         stacked = vstack_params_where_state(
+#             (ap1, 'Engaged'),
+#             (ap2, 'Engaged'),
+#             (ap3, 'Engaged'),
+#         )
+#         self.array = stacked.sum(axis=0)
+#         self.offset = offset_select('mean', [ap1, ap2, ap3])
 
 
 class Configuration(MultistateDerivedParameterNode):
@@ -167,7 +167,7 @@ class Configuration(MultistateDerivedParameterNode):
 
         return True
 
-    def derive(self, flap=M('Flap Including Transition'), slat=M('Slat Including Transition'),
+    def derive(self, flap=M('Flap Including Transition'), lever=P('Flap Handle Index'),
                model=A('Model'), series=A('Series'), family=A('Family'),):
 
         angles = at.get_conf_angles(model.value, series.value, family.value)
@@ -176,10 +176,10 @@ class Configuration(MultistateDerivedParameterNode):
         self.array = MappedArray(np_ma_masked_zeros_like(flap.array, dtype=np.short),
                                  values_mapping=self.values_mapping)
 
-        for (state, (s, f, a)) in six.iteritems(angles):
+        for (state, (f, l)) in six.iteritems(angles):
             condition = (flap.array == f)
-            if s is not None:
-                condition &= (slat.array == s)
+            if l is not None:
+                condition &= (lever.array == l)
 
             self.array[condition] = state
 
@@ -417,23 +417,15 @@ class Flap(MultistateDerivedParameterNode):
     '''
 
     units = ut.DEGREE
+    align = False
     # Currently uses the frequency of the Flap Angle parameter - might
     # consider upsampling to 2Hz for the Kernal sizes in the calculate_flap
     # function
-    ##align_frequency = 2
+    # align_frequency = 2
 
     @classmethod
     def can_operate(cls, available, frame=A('Frame'),
                     model=A('Model'), series=A('Series'), family=A('Family')):
-
-        frame_name = frame.value if frame else None
-        family_name = family.value if family else None
-
-        if frame_name == 'L382-Hercules' or family_name == 'C208':
-            return 'Altitude AAL' in available
-
-        if family_name == 'Citation VLJ':
-            return all_of(('HDF Duration', 'Landing', 'Takeoff'), available)
 
         if not all_of(('Flap Angle', 'Model', 'Series', 'Family'), available):
             return False
@@ -449,18 +441,12 @@ class Flap(MultistateDerivedParameterNode):
         return True
 
     def derive(self, flap=P('Flap Angle'),
-               model=A('Model'), series=A('Series'), family=A('Family'),
-               frame=A('Frame'),
-               hdf_duration=A('HDF Duration')):
-
-        family_name = family.value if family else None
-
-        if 'B737' in family_name:
-            _slices = runs_of_ones(np.logical_and(flap.array>=0.9, flap.array<=2.1))
-            for s in _slices:
-                flap.array[s] = smooth_signal(flap.array[s], window_len=5, window='flat')
+               model=A('Model'), series=A('Series'), family=A('Family')):
+        self.values_mapping = at.get_flap_map(model.value, series.value, family.value)
+        self.array = step_values(flap.array, self.values_mapping.keys(), flap.hz)
         self.values_mapping, self.array, self.frequency, self.offset = calculate_flap(
             'lever', flap, model, series, family)
+        print(self.array)
 
 
 class FlapIncludingTransition(MultistateDerivedParameterNode):

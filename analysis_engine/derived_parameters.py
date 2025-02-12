@@ -2084,103 +2084,31 @@ class GroundspeedSigned(DerivedParameterNode):
             self.array[tx] = np.ma.minimum(gspd.array[tx], gsp)
 class FlapAngle(DerivedParameterNode):
     '''
-    Gather the recorded flap angle parameters and convert into a single
-    analogue.
-
-    Interleaves each of the available flap angle signals into one array, uses
-    the sampling offsets (parameters do not need to be evenly sampled in the
-    frame) to integrate the resulting array at the combined frequency.
+    Gather the recorded flap angle parameters and convert them into a single
+    analogue by blending the two available flap angle signals.
     '''
 
     align = False
     units = ut.DEGREE
-
-    apply_median_filter = True
+    apply_median_filter = True  # Retained in case blend_two_parameters wants it
 
     @classmethod
     def can_operate(cls, available):
-
-        return any_of(('Flap Angle (L)', 'Flap Angle (R)'), available)
+        return all(key in available for key in ('Flap Angle (L)', 'Flap Angle (R)'))
 
     def derive(self,
                flap_A=P('Flap Angle (L)'),
                flap_B=P('Flap Angle (R)')):
+        # Assume both flap angle parameters are always present (flight sim synthetic data)
+        # Sort signals by offset
+        sources = sorted([flap_A, flap_B], key=lambda f: f.offset)
 
-        sources = [f for f in (flap_A, flap_B) if f]
-
-        # if only one parameter, align and use that parameter - easy
-        if len(sources) == 1:
-            self.array = sources[0].array
-            self.offset = sources[0].offset
-            self.frequency = sources[0].frequency
-            return
-
-        if len(sources) == 3:
-            # we can only work with 2 or 4 sources to make the math easier on
-            # the hz and interpolation
-            sources = sources[:2]
-
-
-        # sort parameters into ascending offsets
-        sources = sorted(sources, key=lambda f: f.offset)
-
-        # interleave data sources so that the x axes is in the correct order
-        self.hz = sources[0].hz * len(sources)
-        self.offset = sources[0].offset
-        if self.offset > 1./self.hz:
-            # offset appears too late into the data; make it as late as allowed
-            self.warning("Flap Angle sources have similar offsets - " \
-                         "check the frame to see if the L and R sources are " \
-                         "worth merging or are taken from the same sensors.")
-            self.offset = 1./self.hz - 0.00001
+        # Ensure both sources have the same frequency
         base_hz = sources[0].hz
-        duration = len(sources[0].array) / float(sources[0].hz)  # duration of flight in seconds
+        assert sources[1].hz == base_hz, "Flap angle sources must share the same frequency."
 
-        xx = []
-        yy = []
-        for flap in sources:
-            assert flap.hz == base_hz, "Can only operate with same flap " \
-                   "signals at same frequencies (reshape requires same " \
-                   "length arrays). We have: %s which should be at the base " \
-                   "frequency of %sHz" % (flap, base_hz)
-            xaxis = np.arange(duration, step=1/flap.hz) + flap.offset
-            xx.append(xaxis)
-            # We do not repair flap.array. If multiple sensors, blend_two_parameters
-            # will take care of filling the missing values with values from the
-            # good sensor.
-            yy.append(flap.array)
-            ##scatter(xaxis, flap.array, edgecolor='none', c=col) # col was in zip with sources in for loop
-
-        # if all have the same frequency, offsets are a multiple of the
-        # values and they complete they are all equally spaced, we don't need
-        # to do any interpolation
-        ##TODO: Couldn't work out how to do this in a pretty way!
-
-
-        # else we have an incomplete set of parameters or are unequally
-        # spaced, we need to resample the data with linear interpolation
-        # between all of the signals to obtain equally spaced data.
-
-        # create new x axis same length in time but with twice the frequency (step)
-        new_xaxis = np.arange(duration, step=1/self.hz) + self.offset # check *2
-
-        # rearrange data into order using ravel/reshape
-        new_yaxis = interp(new_xaxis,
-                           np.vstack(xx).ravel(order='F'),  # numpy array works
-                           np.ma.vstack(yy).data.ravel(order='F'),
-                           ##np.ma.vstack(yy).reshape(len(flap.array)*2, order='F'),  # masked array doesn't support order argument yet!
-                           )
-        # apply median filter to remove spikes where interpolating between
-        # two similar but different values and convert to masked array
-        if self.apply_median_filter:
-            self.array = np.ma.array(medfilt(new_yaxis, 5))
-        else:
-            self.array = np.ma.array(new_yaxis)
-        ##scatter(new_xaxis, self.array, edgecolor='none', c='r')
-
-        if len(sources) == 2:
-            self.array, self.frequency, self.offset = blend_two_parameters(*sources)
-
+        # Blend the two parameters into one unified parameter.
+        self.array, self.frequency, self.offset = blend_two_parameters(*sources)
 
 class SlatAngle(DerivedParameterNode):
     '''
@@ -2412,58 +2340,6 @@ class HeadingTrueContinuous(DerivedParameterNode):
     def derive(self, hdg=P('Heading True')):
         self.array = repair_mask(straighten_headings(hdg.array))
 
-
-class ILSFrequency(DerivedParameterNode):
-    '''
-    Identification of the tuned ILS Frequency.
-
-    Where two systems are recorded, this adopts the No.1 system where
-    possible, reverting to the No.2 system when this is tuned to an ILS
-    frequency and No1 is not.
-
-    Note: This code used to check for both receivers tuned to the same ILS
-    frequency, but on a number of flights one receiver was found to be tuned
-    to a VOR or DME, hence the change in function.
-    '''
-
-    name = 'ILS Frequency'
-    align = False
-    units = ut.MHZ
-
-    @classmethod
-    def can_operate(cls, available):
-        return ('ILS (1) Frequency' in available and
-                'ILS (2) Frequency' in available) or \
-               ('ILS (3) Frequency' in available)
-
-    def derive(self, f1=P('ILS (1) Frequency'), f2=P('ILS (2) Frequency'), f3=P('ILS (3) Frequency')):
-
-        #TODO: Extend to allow for three-receiver installations
-        if f1 and f2:
-            first = f1.array
-            # align second to the first
-            #TODO: Could check which is the higher frequency and align to that
-            second = align(f2, f1, interpolate=False)
-        elif f1v and f2v:
-            first = f1v.array
-            # align second to the first
-            second = align(f2v, f1v, interpolate=False)
-        elif f1v and not f2v:
-            # Some aircraft have inoperative ILS-VOR (2) systems, which
-            # record frequencies outside the valid range.
-            first = f1v.array
-        else:
-            raise ValueError("Incorrect set of ILS frequency parameters")
-
-        # Mask invalid frequencies
-        f1_trim = filter_vor_ils_frequencies(first, 'ILS')
-        if f1v and not f2v:
-            self.array = f1_trim
-        else:
-            f2_trim = filter_vor_ils_frequencies(second, 'ILS')
-            # We use getmaskarray rather than .mask to provide a correct
-            # dimension array in the presence of fully valid data.
-            self.array = np.ma.where(np.ma.getmaskarray(f1_trim), f2_trim, f1_trim)
 
 
 class ILSLocalizer(DerivedParameterNode):
@@ -3349,7 +3225,7 @@ class LongitudePrepared(DerivedParameterNode, CoordinatesStraighten):
     See Latitude Smoothed for notes.
     """
     name = 'Longitude Prepared'
-    align_frequency = 1
+    align = False
     units = ut.DEGREE
 
     @classmethod
@@ -3389,7 +3265,7 @@ class LatitudePrepared(DerivedParameterNode, CoordinatesStraighten):
     takeoff and landing locations.
     """
     name = 'Latitude Prepared'
-    align_frequency = 1
+    align = False
     units = ut.DEGREE
 
     @classmethod

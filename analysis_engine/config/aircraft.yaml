@@ -11,3 +11,17 @@ G-FDSL:
   Frame Qualifier: Altitude_Radio_EFIS
   Precise Positioning: false
   Modifications: []
+
+G-FENX:
+  Aircraft Type: aeroplane
+  Engine Series: CFM56-5
+  Engine Type: CFM56-5B3
+  Engine Propulsion: JET
+  Manufacturer: Airbus
+  Family: A320
+  Series: A321
+  Model: A321-200
+  Frame: A321
+  Frame Qualifier: Altitude_Radio_EFIS
+  Precise Positioning: false
+  Modifications: []

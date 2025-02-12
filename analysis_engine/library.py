@@ -785,7 +785,7 @@ def calculate_surface_angle(mode, param, detents):
     # ---- Pre-processing ----------------------------------------------
     angle = np.ma.masked_array(medfilt(angle, filter_median_window))
 
-    metrics = np.full(len(angle), np.Inf)
+    metrics = np.full(len(angle), np.inf)
     for l in np.array([2, 3, 4, 5, 6, 8, 12, 16]):
         maxy = filters.maximum_filter1d(angle, l)
         miny = filters.minimum_filter1d(angle, l)
@@ -7144,8 +7144,8 @@ def smooth_track_cost_function(lat_s, lon_s, lat, lon, ac_type, hz):
     from_straight = np.sum(np.convolve(lat_s,slider,'valid')**2) + \
         np.sum(np.convolve(lon_s,slider,'valid')**2)
 
-    if ac_type and ac_type.value=='helicopter':
-        weight = 100 # As helicopters fly more slowly so we don't need such smoothing.
+    if hz == 8.0:
+        weight = 1000
     elif hz == 1.0:
         weight = 1000
     elif hz == 0.5:

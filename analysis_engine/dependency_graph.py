@@ -489,8 +489,8 @@ def process_order(gr_all, node_mgr, raise_inoperable_requested=False,
     if dependency_tree_log:
         ordered_tree_to_file(tree_path, name=dependency_tree_log)
     for n, node in enumerate(process_order):
-        gr_all.node[node]['label'] = '%d: %s' % (n, node)
-        gr_all.node[node]['active'] = True
+        gr_all.nodes[node]['label'] = '%d: %s' % (n, node)
+        gr_all.nodes[node]['active'] = True
 
     inactive_nodes = set(gr_all.nodes()) - set(process_order)
     logger.debug("Inactive nodes: %s", list(sorted(inactive_nodes)))
@@ -499,8 +499,8 @@ def process_order(gr_all, node_mgr, raise_inoperable_requested=False,
 
     for node in inactive_nodes:
         # add attributes to the node to reflect it's inactivity
-        gr_all.node[node]['color'] = '#c0c0c0'  # silver
-        gr_all.node[node]['active'] = False
+        gr_all.nodes[node]['color'] = '#c0c0c0'  # silver
+        gr_all.nodes[node]['active'] = False
         inactive_edges = gr_all.in_edges(node)
         gr_all.add_edges_from(inactive_edges, color='#c0c0c0')  # silver
 

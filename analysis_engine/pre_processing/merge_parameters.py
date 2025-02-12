@@ -39,7 +39,7 @@ class LongitudePrepared(DerivedParameterNode, CoordinatesStraighten):
     See Latitude Smoothed for notes.
     """
     name = 'Longitude Prepared'
-    align_frequency = 1
+    align = False
     units = ut.DEGREE
 
     def derive(self,
@@ -58,7 +58,7 @@ class LatitudePrepared(DerivedParameterNode, CoordinatesStraighten):
     See Latitude Smoothed for notes.
     """
     name = 'Latitude Prepared'
-    align_frequency = 1
+    align = False
     units = ut.DEGREE
 
     # Note force to 1Hz operation as latitude & longitude can be only
@@ -107,7 +107,7 @@ class Latitude(DerivedParameterNode):
 
         elif len(sources) > 2:
             self.offset = 0.0
-            self.frequency = 1.0
+            self.frequency = 8.0
             self.array = blend_parameters(sources, offset=self.offset,
                                           frequency=self.frequency)
         else:
@@ -156,7 +156,7 @@ class Longitude(DerivedParameterNode):
 
         elif len(sources) > 2:
             self.offset = 0.0
-            self.frequency = 1.0
+            self.frequency = 8.0
             blended = blend_parameters(sources, offset=self.offset,
                                        frequency=self.frequency)
             self.array = blended % 360 - 180.0

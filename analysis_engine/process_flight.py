@@ -275,7 +275,7 @@ def derive_parameters(hdf, node_mgr, process_order, params=None, force=False):
                 # then there will be an array length of  1411 at 0.5Hz and 706
                 # at 0.25Hz (rounded upwards). If we combine two 0.25Hz
                 # parameters then we will have an array length of 1412.
-                expected_length = duration * node.frequency
+                expected_length = int(duration * node.frequency)
                 if node.array is None or (force and len(node.array) == 0):
                     logger.warning("No array set; creating a fully masked "
                                    "array for %s", param_name)
@@ -289,7 +289,7 @@ def derive_parameters(hdf, node_mgr, process_order, params=None, force=False):
                 length_diff = array_length - expected_length
                 if length_diff == 0:
                     pass
-                elif 0 < length_diff < 5:
+                elif 0 < int(length_diff) < 50:
                     logger.warning("Cutting excess data for parameter '%s'. "
                                    "Expected length was '%s' while resulting "
                                    "array length was '%s'.", param_name,
@@ -568,12 +568,7 @@ def process_flight(segment_info, tail_number, aircraft_info={}, achieved_flight_
         aircraft_info = get_aircraft_info(tail_number)
 
     aircraft_info['Tail Number'] = tail_number
-
-    if aircraft_info['Aircraft Type'] == 'helicopter':
-        node_modules = settings.NODE_MODULES + \
-            settings.NODE_HELICOPTER_MODULE_PATHS + additional_modules
-    else:
-        node_modules = settings.NODE_MODULES + additional_modules
+    node_modules = settings.NODE_MODULES + additional_modules
     # go through modules to get derived nodes
     derived_nodes = get_derived_nodes(node_modules)
 
